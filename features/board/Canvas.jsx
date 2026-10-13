@@ -300,10 +300,10 @@ export default function Canvas({
         color: currentColor,
         strokeWidth: activeTool === 'brush' ? Math.max(6, currentStrokeWidth * 2) : currentStrokeWidth,
       }
-    } else if (activeTool === 'rectangle') {
+    } else if (['rectangle', 'diamond', 'triangle', 'star', 'heart', 'hexagon', 'cloud'].includes(activeTool)) {
       transientElementRef.current = {
         id: generateId(),
-        type: 'rectangle',
+        type: activeTool,
         x: world.x,
         y: world.y,
         width: 0,
@@ -324,21 +324,10 @@ export default function Canvas({
         strokeWidth: currentStrokeWidth,
         fillColor: currentFillColor,
       }
-    } else if (activeTool === 'line') {
+    } else if (['line', 'arrow', 'double-arrow'].includes(activeTool)) {
       transientElementRef.current = {
         id: generateId(),
-        type: 'line',
-        x1: world.x,
-        y1: world.y,
-        x2: world.x,
-        y2: world.y,
-        color: currentColor,
-        strokeWidth: currentStrokeWidth,
-      }
-    } else if (activeTool === 'arrow') {
-      transientElementRef.current = {
-        id: generateId(),
-        type: 'arrow',
+        type: activeTool,
         x1: world.x,
         y1: world.y,
         x2: world.x,
@@ -395,7 +384,7 @@ export default function Canvas({
             ...el,
             points: el.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
           }
-        } else if (el.type === 'line' || el.type === 'arrow') {
+        } else if (el.type === 'line' || el.type === 'arrow' || el.type === 'double-arrow') {
           const dx = world.x - pointerStartRef.current.worldX
           const dy = world.y - pointerStartRef.current.worldY
           pointerStartRef.current.worldX = world.x
@@ -431,7 +420,7 @@ export default function Canvas({
 
       if (current.type === 'pen' || current.type === 'brush') {
         current.points.push({ x: world.x, y: world.y })
-      } else if (current.type === 'rectangle') {
+      } else if (['rectangle', 'diamond', 'triangle', 'star', 'heart', 'hexagon', 'cloud'].includes(current.type)) {
         current.x = Math.min(startW.worldX, world.x)
         current.y = Math.min(startW.worldY, world.y)
         current.width = Math.abs(world.x - startW.worldX)
@@ -441,7 +430,7 @@ export default function Canvas({
         current.y = (startW.worldY + world.y) / 2
         current.radiusX = Math.abs(world.x - startW.worldX) / 2
         current.radiusY = Math.abs(world.y - startW.worldY) / 2
-      } else if (current.type === 'line' || current.type === 'arrow') {
+      } else if (['line', 'arrow', 'double-arrow'].includes(current.type)) {
         current.x2 = world.x
         current.y2 = world.y
       }
@@ -470,7 +459,7 @@ export default function Canvas({
 
       // Filter out accidental clicks (0 width/height)
       let isValid = true
-      if (el.type === 'rectangle' && el.width < 3 && el.height < 3) isValid = false
+      if (['rectangle', 'diamond', 'triangle', 'star', 'heart', 'hexagon', 'cloud'].includes(el.type) && el.width < 3 && el.height < 3) isValid = false
       if (el.type === 'circle' && el.radiusX < 2 && el.radiusY < 2) isValid = false
       if ((el.type === 'pen' || el.type === 'brush') && el.points.length < 2) isValid = false
 

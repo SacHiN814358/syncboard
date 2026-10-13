@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   MousePointer,
   Hand,
@@ -10,6 +10,13 @@ import {
   Circle,
   Minus,
   MoveRight,
+  MoveHorizontal,
+  Diamond,
+  Triangle,
+  Star,
+  Heart,
+  Hexagon,
+  Cloud,
   Type,
   StickyNote,
   Eraser,
@@ -18,21 +25,35 @@ import {
   Trash2,
   Smile,
   Pipette,
+  ChevronDown,
 } from 'lucide-react'
 import { COLORS, STROKE_WIDTHS } from '@/features/board/elements'
 
-const TOOLS = [
+const PRIMARY_TOOLS = [
+  { id: 'select', label: 'Select / Move', shortcut: 'V', icon: MousePointer },
+  { id: 'pan', label: 'Hand / Pan', shortcut: 'H', icon: Hand },
   { id: 'pen', label: 'Pencil', shortcut: 'P', icon: Pencil },
   { id: 'brush', label: 'Brush', shortcut: 'B', icon: Paintbrush },
   { id: 'eraser', label: 'Eraser', shortcut: 'X', icon: Eraser },
-  { id: 'select', label: 'Select / Move', shortcut: 'V', icon: MousePointer },
-  { id: 'rectangle', label: 'Rectangle', shortcut: 'R', icon: Square },
-  { id: 'circle', label: 'Circle', shortcut: 'O', icon: Circle },
-  { id: 'arrow', label: 'Arrow', shortcut: 'A', icon: MoveRight },
-  { id: 'line', label: 'Line', shortcut: 'L', icon: Minus },
+]
+
+const SHAPES_LIST = [
+  { id: 'rectangle', label: 'Rectangle', icon: Square, category: 'Basic Shapes' },
+  { id: 'circle', label: 'Circle', icon: Circle, category: 'Basic Shapes' },
+  { id: 'diamond', label: 'Diamond', icon: Diamond, category: 'Basic Shapes' },
+  { id: 'triangle', label: 'Triangle', icon: Triangle, category: 'Basic Shapes' },
+  { id: 'hexagon', label: 'Hexagon', icon: Hexagon, category: 'Basic Shapes' },
+  { id: 'star', label: 'Star', icon: Star, category: 'Special Shapes' },
+  { id: 'heart', label: 'Heart', icon: Heart, category: 'Special Shapes' },
+  { id: 'cloud', label: 'Cloud', icon: Cloud, category: 'Special Shapes' },
+  { id: 'line', label: 'Line', icon: Minus, category: 'Connectors' },
+  { id: 'arrow', label: 'Arrow', icon: MoveRight, category: 'Connectors' },
+  { id: 'double-arrow', label: 'Double Arrow', icon: MoveHorizontal, category: 'Connectors' },
+]
+
+const ANNOTATION_TOOLS = [
   { id: 'text', label: 'Text', shortcut: 'T', icon: Type },
   { id: 'sticky', label: 'Sticky Note', shortcut: 'S', icon: StickyNote },
-  { id: 'pan', label: 'Hand / Pan', shortcut: 'H', icon: Hand },
 ]
 
 /**
@@ -69,6 +90,48 @@ export default function Toolbar({
 }) {
   const isCustomColor = !COLORS.includes(currentColor)
   const [hasEyeDropper, setHasEyeDropper] = useState(false)
+  const [shapesOpen, setShapesOpen] = useState(false)
+  const [selectedShapeId, setSelectedShapeId] = useState('rectangle')
+  const shapesDropdownRef = useRef(null)
+
+  // Track if activeTool is one of the shapes
+  const isShapeActive = SHAPES_LIST.some((s) => s.id === activeTool)
+  const currentShape =
+    SHAPES_LIST.find((s) => s.id === activeTool) ||
+    SHAPES_LIST.find((s) => s.id === selectedShapeId) ||
+    SHAPES_LIST[0]
+  const ActiveShapeIcon = currentShape.icon
+
+  // Update selectedShapeId if activeTool changes to a shape externally (e.g. keyboard shortcut)
+  useEffect(() => {
+    if (isShapeActive) {
+      setSelectedShapeId(activeTool)
+    }
+  }, [activeTool, isShapeActive])
+
+  // Close dropdown on click outside or Escape
+  useEffect(() => {
+    if (!shapesOpen) return
+
+    const handleClickOutside = (e) => {
+      if (shapesDropdownRef.current && !shapesDropdownRef.current.contains(e.target)) {
+        setShapesOpen(false)
+      }
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShapesOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [shapesOpen])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'EyeDropper' in window) {
@@ -117,7 +180,171 @@ export default function Toolbar({
 
         {/* Tools Section */}
         <div className="flex items-center gap-0.5">
-          {TOOLS.map((tool) => {
+          {PRIMARY_TOOLS.map((tool) => {
+            const Icon = tool.icon
+            const isActive = activeTool === tool.id
+
+            return (
+              <button
+                key={tool.id}
+                onClick={() => onSelectTool(tool.id)}
+                data-active={isActive}
+                title={`${tool.label} (${tool.shortcut})`}
+                aria-label={tool.label}
+                className="toolbar-btn group relative"
+              >
+                <Icon className="w-4 h-4" />
+
+                {/* Tooltip */}
+                <span className="hidden group-hover:flex tooltip-enter absolute -bottom-9 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-[#212529] text-white text-[11px] font-medium whitespace-nowrap shadow-md pointer-events-none z-50 items-center gap-1">
+                  <span>{tool.label}</span>
+                  <span className="text-[#adb5bd] text-[10px]">({tool.shortcut})</span>
+                </span>
+              </button>
+            )
+          })}
+
+          {/* Shapes Dropdown Button & Menu */}
+          <div className="relative" ref={shapesDropdownRef}>
+            <button
+              onClick={() => {
+                if (!isShapeActive) {
+                  onSelectTool(selectedShapeId)
+                }
+                setShapesOpen((prev) => !prev)
+              }}
+              data-active={isShapeActive}
+              title={`Shapes (${currentShape.label}) - Click to pick shapes`}
+              aria-label="Shapes Menu"
+              className={`toolbar-btn group relative flex items-center gap-1 px-1.5 ${
+                isShapeActive ? 'bg-[#e7f5ff] text-[#1971c2]' : ''
+              }`}
+            >
+              <ActiveShapeIcon className="w-4 h-4" />
+              <ChevronDown
+                className={`w-3 h-3 text-[#868e96] transition-transform duration-150 ${
+                  shapesOpen ? 'rotate-180' : ''
+                }`}
+              />
+
+              {/* Tooltip */}
+              {!shapesOpen && (
+                <span className="hidden group-hover:flex tooltip-enter absolute -bottom-9 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-[#212529] text-white text-[11px] font-medium whitespace-nowrap shadow-md pointer-events-none z-50 items-center gap-1">
+                  <span>Shapes: {currentShape.label}</span>
+                </span>
+              )}
+            </button>
+
+            {/* Shapes Dropdown Popover */}
+            {shapesOpen && (
+              <div className="absolute top-full mt-2.5 left-1/2 -translate-x-1/2 bg-white/98 backdrop-blur-md rounded-2xl border border-[#e9ecef] shadow-[0_16px_38px_-4px_rgba(0,0,0,0.18)] p-3 w-68 z-50 select-none animate-in fade-in zoom-in-95 duration-100">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#f1f3f5]">
+                  <span className="text-xs font-semibold text-[#343a40]">Shapes & Diagrams</span>
+                  <span className="text-[10px] text-[#868e96] bg-[#f8f9fa] px-1.5 py-0.5 rounded-md border border-[#e9ecef] font-medium">
+                    11 Shapes
+                  </span>
+                </div>
+
+                {/* Geometric Shapes */}
+                <div className="mb-2.5">
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Geometric Shapes
+                  </div>
+                  <div className="grid grid-cols-5 gap-1">
+                    {SHAPES_LIST.filter((s) => s.category === 'Basic Shapes').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          className={`p-2 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Special Shapes & Badges */}
+                <div className="mb-2.5">
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Badges & Icons
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {SHAPES_LIST.filter((s) => s.category === 'Special Shapes').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          className={`py-1.5 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span className="text-[11px] font-medium">{shape.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Connectors & Arrows */}
+                <div>
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Connectors & Arrows
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {SHAPES_LIST.filter((s) => s.category === 'Connectors').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          className={`py-1.5 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span className="text-[11px] font-medium truncate">{shape.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Text & Sticky Tools */}
+          {ANNOTATION_TOOLS.map((tool) => {
             const Icon = tool.icon
             const isActive = activeTool === tool.id
 

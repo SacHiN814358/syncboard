@@ -272,6 +272,170 @@ export function drawSelectionBox(ctx, bounds) {
   }
 }
 
+export function drawDiamond(ctx, el) {
+  const cx = el.x + el.width / 2
+  const cy = el.y + el.height / 2
+  ctx.beginPath()
+  ctx.moveTo(cx, el.y)
+  ctx.lineTo(el.x + el.width, cy)
+  ctx.lineTo(cx, el.y + el.height)
+  ctx.lineTo(el.x, cy)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawTriangle(ctx, el) {
+  ctx.beginPath()
+  ctx.moveTo(el.x + el.width / 2, el.y)
+  ctx.lineTo(el.x + el.width, el.y + el.height)
+  ctx.lineTo(el.x, el.y + el.height)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawStar(ctx, el) {
+  const cx = el.x + el.width / 2
+  const cy = el.y + el.height / 2
+  const outerR = Math.min(Math.abs(el.width), Math.abs(el.height)) / 2
+  const innerR = outerR * 0.45
+  const points = 5
+  const step = Math.PI / points
+  ctx.beginPath()
+  for (let i = 0; i < 2 * points; i++) {
+    const r = i % 2 === 0 ? outerR : innerR
+    const angle = i * step - Math.PI / 2
+    const px = cx + r * Math.cos(angle)
+    const py = cy + r * Math.sin(angle)
+    if (i === 0) ctx.moveTo(px, py)
+    else ctx.lineTo(px, py)
+  }
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawHeart(ctx, el) {
+  const x = el.x
+  const y = el.y
+  const w = el.width
+  const h = el.height
+  ctx.beginPath()
+  const topH = h * 0.3
+  ctx.moveTo(x + w / 2, y + h)
+  ctx.bezierCurveTo(x, y + h * 0.6, x, y, x + w / 4, y)
+  ctx.bezierCurveTo(x + w / 2, y, x + w / 2, y + topH, x + w / 2, y + topH)
+  ctx.bezierCurveTo(x + w / 2, y + topH, x + w / 2, y, x + (3 * w) / 4, y)
+  ctx.bezierCurveTo(x + w, y, x + w, y + h * 0.6, x + w / 2, y + h)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawHexagon(ctx, el) {
+  const cx = el.x + el.width / 2
+  const cy = el.y + el.height / 2
+  const rx = Math.abs(el.width) / 2
+  const ry = Math.abs(el.height) / 2
+  ctx.beginPath()
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * Math.PI) / 3
+    const px = cx + rx * Math.cos(angle)
+    const py = cy + ry * Math.sin(angle)
+    if (i === 0) ctx.moveTo(px, py)
+    else ctx.lineTo(px, py)
+  }
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawCloud(ctx, el) {
+  const x = el.x
+  const y = el.y
+  const w = el.width
+  const h = el.height
+  ctx.beginPath()
+  ctx.moveTo(x + w * 0.2, y + h * 0.7)
+  ctx.bezierCurveTo(x, y + h * 0.7, x, y + h * 0.4, x + w * 0.2, y + h * 0.4)
+  ctx.bezierCurveTo(x + w * 0.15, y + h * 0.1, x + w * 0.45, y + h * 0.1, x + w * 0.5, y + h * 0.3)
+  ctx.bezierCurveTo(x + w * 0.6, y + h * 0.15, x + w * 0.85, y + h * 0.2, x + w * 0.85, y + h * 0.45)
+  ctx.bezierCurveTo(x + w, y + h * 0.45, x + w, y + h * 0.7, x + w * 0.8, y + h * 0.7)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawDoubleArrow(ctx, el) {
+  ctx.strokeStyle = el.color
+  ctx.fillStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineCap = 'round'
+
+  // Shaft
+  ctx.beginPath()
+  ctx.moveTo(el.x1, el.y1)
+  ctx.lineTo(el.x2, el.y2)
+  ctx.stroke()
+
+  const angle = Math.atan2(el.y2 - el.y1, el.x2 - el.x1)
+  const headLen = Math.max(10, el.strokeWidth * 4)
+  const headAngle = Math.PI / 7
+
+  // Forward Arrowhead
+  ctx.beginPath()
+  ctx.moveTo(el.x2, el.y2)
+  ctx.lineTo(el.x2 - headLen * Math.cos(angle - headAngle), el.y2 - headLen * Math.sin(angle - headAngle))
+  ctx.lineTo(el.x2 - headLen * Math.cos(angle + headAngle), el.y2 - headLen * Math.sin(angle + headAngle))
+  ctx.closePath()
+  ctx.fill()
+
+  // Backward Arrowhead
+  ctx.beginPath()
+  ctx.moveTo(el.x1, el.y1)
+  ctx.lineTo(el.x1 + headLen * Math.cos(angle - headAngle), el.y1 + headLen * Math.sin(angle - headAngle))
+  ctx.lineTo(el.x1 + headLen * Math.cos(angle + headAngle), el.y1 + headLen * Math.sin(angle + headAngle))
+  ctx.closePath()
+  ctx.fill()
+}
+
 /**
  * Dispatch drawing to the correct renderer based on element type.
  * @param {CanvasRenderingContext2D} ctx
@@ -290,11 +454,32 @@ export function drawElement(ctx, el) {
     case 'circle':
       drawCircle(ctx, el)
       break
+    case 'diamond':
+      drawDiamond(ctx, el)
+      break
+    case 'triangle':
+      drawTriangle(ctx, el)
+      break
+    case 'star':
+      drawStar(ctx, el)
+      break
+    case 'heart':
+      drawHeart(ctx, el)
+      break
+    case 'hexagon':
+      drawHexagon(ctx, el)
+      break
+    case 'cloud':
+      drawCloud(ctx, el)
+      break
     case 'line':
       drawLine(ctx, el)
       break
     case 'arrow':
       drawArrow(ctx, el)
+      break
+    case 'double-arrow':
+      drawDoubleArrow(ctx, el)
       break
     case 'text':
       drawText(ctx, el)

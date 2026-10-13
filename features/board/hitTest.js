@@ -34,6 +34,12 @@ export function getElementBounds(el) {
 
     case 'rectangle':
     case 'sticky':
+    case 'diamond':
+    case 'triangle':
+    case 'star':
+    case 'heart':
+    case 'hexagon':
+    case 'cloud':
       return { x: el.x, y: el.y, width: el.width, height: el.height }
 
     case 'circle':
@@ -45,7 +51,8 @@ export function getElementBounds(el) {
       }
 
     case 'line':
-    case 'arrow': {
+    case 'arrow':
+    case 'double-arrow': {
       const minX = Math.min(el.x1, el.x2)
       const minY = Math.min(el.y1, el.y2)
       return {
@@ -90,6 +97,12 @@ export function hitTestElement(wx, wy, el, tolerance = 8) {
 
     case 'rectangle':
     case 'sticky':
+    case 'diamond':
+    case 'triangle':
+    case 'star':
+    case 'heart':
+    case 'hexagon':
+    case 'cloud':
       return hitTestRect(wx, wy, el, tolerance)
 
     case 'circle':
@@ -97,6 +110,7 @@ export function hitTestElement(wx, wy, el, tolerance = 8) {
 
     case 'line':
     case 'arrow':
+    case 'double-arrow':
       return hitTestLine(wx, wy, el.x1, el.y1, el.x2, el.y2, tolerance)
 
     case 'text': {

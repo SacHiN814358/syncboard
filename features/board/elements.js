@@ -7,7 +7,7 @@
  */
 
 /**
- * @typedef {'select' | 'pan' | 'pen' | 'brush' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text' | 'sticky' | 'eraser'} ToolType
+ * @typedef {'select' | 'pan' | 'pen' | 'brush' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'double-arrow' | 'triangle' | 'diamond' | 'star' | 'heart' | 'hexagon' | 'cloud' | 'text' | 'sticky' | 'eraser'} ToolType
  */
 
 /**

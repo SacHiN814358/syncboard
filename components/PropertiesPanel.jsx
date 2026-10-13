@@ -51,12 +51,15 @@ export default function PropertiesPanel({
 }) {
   const isSticky = activeTool === 'sticky' || selectedElement?.type === 'sticky'
   const isText = activeTool === 'text' || selectedElement?.type === 'text'
+  const ALL_SHAPES_WITH_FILL = ['rectangle', 'circle', 'diamond', 'triangle', 'star', 'heart', 'hexagon', 'cloud']
+  const ALL_SHAPES_WITH_STROKE = ['pen', 'rectangle', 'circle', 'line', 'arrow', 'double-arrow', 'diamond', 'triangle', 'star', 'heart', 'hexagon', 'cloud']
+
   const hasStroke =
-    ['pen', 'rectangle', 'circle', 'line', 'arrow'].includes(activeTool) ||
-    ['pen', 'rectangle', 'circle', 'line', 'arrow'].includes(selectedElement?.type)
+    ALL_SHAPES_WITH_STROKE.includes(activeTool) ||
+    ALL_SHAPES_WITH_STROKE.includes(selectedElement?.type)
   const hasFill =
-    ['rectangle', 'circle'].includes(activeTool) ||
-    ['rectangle', 'circle'].includes(selectedElement?.type)
+    ALL_SHAPES_WITH_FILL.includes(activeTool) ||
+    ALL_SHAPES_WITH_FILL.includes(selectedElement?.type)
 
   // Don't show properties if tool is pan or eraser with no selection
   if (['pan', 'eraser'].includes(activeTool) && !selectedElement) {
