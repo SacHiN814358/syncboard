@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --color-board-bg: #f8f9fa;
+  --color-canvas-bg: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f1f3f5;
+  --color-border: #e9ecef;
+  --color-border-subtle: #f1f3f5;
+  --color-text-primary: #212529;
+  --color-text-secondary: #868e96;
+  --color-text-tertiary: #adb5bd;
+  --color-accent: #1971c2;
+  --color-accent-light: #e7f5ff;
+  --color-accent-hover: #1864ab;
+  --color-success: #2f9e44;
+  --color-warning: #f08c00;
+  --color-error: #e03131;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-text-primary);
+    background: var(--color-board-bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Prevent text selection during canvas interactions */
+  .select-none-deep,
+  .select-none-deep * {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+@layer components {
+  .toolbar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    color: var(--color-text-secondary);
+    transition: background-color 120ms ease, color 120ms ease;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    outline: none;
+    position: relative;
+  }
+
+  .toolbar-btn:hover {
+    background: var(--color-surface-raised);
+    color: var(--color-text-primary);
+  }
+
+  .toolbar-btn:focus-visible {
+    box-shadow: 0 0 0 2px var(--color-accent);
+  }
+
+  .toolbar-btn[data-active="true"] {
+    background: var(--color-accent-light);
+    color: var(--color-accent);
+  }
+
+  .toolbar-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--color-border);
+    margin: 0 2px;
+    flex-shrink: 0;
+  }
+}
+
+/* Tooltip animation */
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tooltip-enter {
+  animation: tooltipFadeIn 120ms ease forwards;
+}
+
+/* Subtle scrollbar for panels */
+.panel-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.panel-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
