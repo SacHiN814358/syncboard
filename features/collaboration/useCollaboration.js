@@ -20,10 +20,15 @@ import { COLLABORATOR_COLORS } from '@/features/board/elements'
  */
 export function useCollaboration(
   roomId,
-  { onRemoteElementsChange, onRemoteDrawPreview, isHost = false } = {}
+  { onRemoteElementsChange, onRemoteDrawPreview, onReaction, isHost = false } = {}
 ) {
   const supabase = createClient()
   const channelRef = useRef(null)
+  const onReactionRef = useRef(onReaction)
+
+  useEffect(() => {
+    onReactionRef.current = onReaction
+  }, [onReaction])
 
   // Stable local identity (starts with deterministic SSR default to avoid hydration mismatch)
   const [currentUser, setCurrentUser] = useState({
@@ -141,6 +146,12 @@ export function useCollaboration(
       }
     })
 
+    // 6. Broadcast: Emoji reaction event
+    channel.on('broadcast', { event: 'emoji_reaction' }, ({ payload }) => {
+      if (!payload) return
+      onReactionRef.current?.(payload)
+    })
+
     // Subscribe to channel
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
@@ -254,6 +265,34 @@ export function useCollaboration(
     })
   }, [currentUser.name])
 
+  /**
+   * Broadcast animated emoji reaction at (worldX, worldY).
+   */
+  const broadcastReaction = useCallback(
+    (emoji, worldX, worldY) => {
+      const reactionPayload = {
+        id: `rx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userColor: currentUser.color,
+        emoji,
+        x: worldX,
+        y: worldY,
+        createdAt: Date.now(),
+      }
+
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'emoji_reaction',
+        payload: reactionPayload,
+      })
+
+      // Dispatch locally immediately for zero latency
+      onReactionRef.current?.(reactionPayload)
+    },
+    [currentUser]
+  )
+
   return {
     currentUser,
     collaborators,
@@ -264,5 +303,6 @@ export function useCollaboration(
     broadcastCursor,
     broadcastDrawPreview,
     broadcastElementsUpdate,
+    broadcastReaction,
   }
 }

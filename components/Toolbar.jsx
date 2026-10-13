@@ -15,13 +15,14 @@ import {
   Undo2,
   Redo2,
   Trash2,
+  Smile,
 } from 'lucide-react'
 import { COLORS, STROKE_WIDTHS } from '@/features/board/elements'
 
 const TOOLS = [
   { id: 'pen', label: 'Pencil', shortcut: 'P', icon: Pencil },
   { id: 'brush', label: 'Brush', shortcut: 'B', icon: Paintbrush },
-  { id: 'eraser', label: 'Eraser', shortcut: 'E', icon: Eraser },
+  { id: 'eraser', label: 'Eraser', shortcut: 'X', icon: Eraser },
   { id: 'select', label: 'Select / Move', shortcut: 'V', icon: MousePointer },
   { id: 'rectangle', label: 'Rectangle', shortcut: 'R', icon: Square },
   { id: 'circle', label: 'Circle', shortcut: 'O', icon: Circle },
@@ -61,6 +62,8 @@ export default function Toolbar({
   onUndo,
   onRedo,
   onClearCanvas,
+  reactionsOpen = false,
+  onToggleReactions,
 }) {
   return (
     <div className="fixed top-15 left-1/2 -translate-x-1/2 z-30 max-w-[98vw]">
@@ -169,6 +172,19 @@ export default function Toolbar({
         </div>
 
         <div className="toolbar-divider" />
+
+        {/* Live Emoji Reactions Button */}
+        <button
+          onClick={onToggleReactions}
+          title="Live Emoji Reactions (E)"
+          className={`toolbar-btn transition-colors ${
+            reactionsOpen
+              ? 'bg-[#e7f5ff] text-[#1971c2]'
+              : 'text-[#495057] hover:bg-[#f1f3f5]'
+          }`}
+        >
+          <Smile className="w-4 h-4 text-amber-500" />
+        </button>
 
         {/* Clear Canvas Button */}
         <button

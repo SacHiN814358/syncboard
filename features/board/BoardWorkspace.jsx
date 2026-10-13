@@ -17,6 +17,9 @@ import ExportModal from '@/components/ExportModal'
 import SqlHelpModal from '@/components/SqlHelpModal'
 import InviteModal from '@/components/InviteModal'
 import JoinCodeModal from '@/components/JoinCodeModal'
+import ReactionOverlay from '@/components/ReactionOverlay'
+import ReactionPicker, { EMOJI_LIST } from '@/components/ReactionPicker'
+import { screenToWorld } from './viewport'
 import Canvas from './Canvas'
 
 /**
@@ -64,8 +67,21 @@ export default function BoardWorkspace({ roomId }) {
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [joinCodeModalOpen, setJoinCodeModalOpen] = useState(false)
 
-  // 6. Multi-User Live Drawing Previews State
+  // 6. Multi-User Live Drawing Previews & Reactions State
   const [remotePreviews, setRemotePreviews] = useState({})
+  const [reactions, setReactions] = useState([])
+  const [reactionsPickerOpen, setReactionsPickerOpen] = useState(false)
+  const lastCursorRef = useRef({ x: 400, y: 300 })
+
+  // Track pointer world position for spawning reactions right at user's cursor
+  useEffect(() => {
+    const onMove = (e) => {
+      const world = screenToWorld(e.clientX, e.clientY, viewport)
+      lastCursorRef.current = world
+    }
+    window.addEventListener('pointermove', onMove)
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [viewport])
 
   // Host role detection (room creator / owner)
   const [isHost, setIsHost] = useState(false)
@@ -84,6 +100,7 @@ export default function BoardWorkspace({ roomId }) {
     broadcastCursor,
     broadcastDrawPreview,
     broadcastElementsUpdate,
+    broadcastReaction,
     isKicked,
     kickCollaborator,
   } = useCollaboration(roomId, {
@@ -103,7 +120,23 @@ export default function BoardWorkspace({ roomId }) {
         return { ...prev, [previewData.userId]: previewData.element }
       })
     },
+    onReaction: (rx) => {
+      const offset = (Math.random() - 0.5) * 44
+      setReactions((prev) => [...prev, { ...rx, offsetX: offset }])
+      setTimeout(() => {
+        setReactions((prev) => prev.filter((r) => r.id !== rx.id))
+      }, 2400)
+    },
   })
+
+  // Trigger emoji reaction broadcast
+  const handleSendReaction = useCallback(
+    (emoji) => {
+      const pos = lastCursorRef.current || { x: 400, y: 300 }
+      broadcastReaction(emoji, pos.x, pos.y)
+    },
+    [broadcastReaction]
+  )
 
   // Load initial board
   useEffect(() => {
@@ -281,13 +314,27 @@ export default function BoardWorkspace({ roomId }) {
         case 's':
           setActiveTool('sticky')
           break
-        case 'e':
+        case 'x':
           setActiveTool('eraser')
+          break
+        case 'e':
+          e.preventDefault()
+          setReactionsPickerOpen((prev) => !prev)
           break
         case 'escape':
           setSelectedElement(null)
+          setReactionsPickerOpen(false)
           setActiveTool('pen')
           break
+      }
+
+      // Quick Emoji Reaction hotkeys (1-8)
+      if (e.key >= '1' && e.key <= '8') {
+        const idx = parseInt(e.key, 10) - 1
+        if (EMOJI_LIST[idx]) {
+          e.preventDefault()
+          handleSendReaction(EMOJI_LIST[idx])
+        }
       }
     }
 
@@ -371,6 +418,8 @@ export default function BoardWorkspace({ roomId }) {
         onUndo={handleUndo}
         onRedo={handleRedo}
         onClearCanvas={handleClearCanvas}
+        reactionsOpen={reactionsPickerOpen}
+        onToggleReactions={() => setReactionsPickerOpen((prev) => !prev)}
       />
 
       {/* 3. Contextual Properties Panel */}
@@ -458,7 +507,17 @@ export default function BoardWorkspace({ roomId }) {
         remotePreviews={remotePreviews}
       />
 
-      {/* 6. Modals */}
+      {/* 6. Live Floating Emoji Reactions Overlay */}
+      <ReactionOverlay reactions={reactions} viewport={viewport} />
+
+      {/* 7. Figma-Style Floating Reaction Picker */}
+      <ReactionPicker
+        isOpen={reactionsPickerOpen}
+        onClose={() => setReactionsPickerOpen(false)}
+        onSelectEmoji={handleSendReaction}
+      />
+
+      {/* 8. Modals */}
       <ExportModal
         isOpen={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
