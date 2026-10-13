@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import {
   MousePointer,
   Hand,
@@ -16,6 +17,7 @@ import {
   Redo2,
   Trash2,
   Smile,
+  Pipette,
 } from 'lucide-react'
 import { COLORS, STROKE_WIDTHS } from '@/features/board/elements'
 
@@ -65,6 +67,27 @@ export default function Toolbar({
   reactionsOpen = false,
   onToggleReactions,
 }) {
+  const isCustomColor = !COLORS.includes(currentColor)
+  const [hasEyeDropper, setHasEyeDropper] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'EyeDropper' in window) {
+      setHasEyeDropper(true)
+    }
+  }, [])
+
+  const handleEyeDropper = async () => {
+    if (typeof window !== 'undefined' && 'EyeDropper' in window) {
+      try {
+        const eyeDropper = new window.EyeDropper()
+        const result = await eyeDropper.open()
+        if (result?.sRGBHex) {
+          onChangeColor(result.sRGBHex)
+        }
+      } catch (_) {}
+    }
+  }
+
   return (
     <div className="fixed top-15 left-1/2 -translate-x-1/2 z-30 max-w-[98vw]">
       <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-[#e9ecef] shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] select-none">
@@ -169,6 +192,52 @@ export default function Toolbar({
               />
             )
           })}
+
+          <div className="w-px h-4 bg-[#e9ecef] mx-0.5" />
+
+          {/* Color Wheel / Custom Color Picker */}
+          <div className="relative flex items-center">
+            <label
+              title={`Color Wheel: Pick custom color (Current: ${currentColor})`}
+              className={`relative w-5.5 h-5.5 rounded-full cursor-pointer flex items-center justify-center border shadow-xs hover:scale-115 active:scale-95 transition-all overflow-hidden ${
+                isCustomColor
+                  ? 'ring-2 ring-[#1971c2] ring-offset-1 border-[#1971c2]'
+                  : 'border-[#ced4da]'
+              }`}
+              style={{
+                background:
+                  'conic-gradient(from 90deg, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff0080, #ff0000)',
+              }}
+            >
+              {/* Inner preview circle showing active color */}
+              <div
+                className="w-2.5 h-2.5 rounded-full border border-white/90 shadow-xs"
+                style={{ backgroundColor: currentColor }}
+              />
+              <input
+                type="color"
+                value={
+                  currentColor.startsWith('#') && currentColor.length === 7
+                    ? currentColor
+                    : '#000000'
+                }
+                onChange={(e) => onChangeColor(e.target.value)}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                title="Color Wheel: Pick any color"
+              />
+            </label>
+          </div>
+
+          {/* EyeDropper Screen Color Picker (if supported) */}
+          {hasEyeDropper && (
+            <button
+              onClick={handleEyeDropper}
+              title="Eyedropper: Pick color from canvas"
+              className="p-1 rounded-md text-[#868e96] hover:text-[#1971c2] hover:bg-[#f1f3f5] transition-colors cursor-pointer"
+            >
+              <Pipette className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         <div className="toolbar-divider" />

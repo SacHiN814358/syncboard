@@ -69,8 +69,33 @@ export default function PropertiesPanel({
         {/* Stroke / Text Color */}
         {!isSticky && (
           <div>
-            <div className="text-[11px] font-semibold text-[#868e96] mb-1.5 uppercase tracking-wider">
-              {isText ? 'Text Color' : 'Stroke Color'}
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] font-semibold text-[#868e96] uppercase tracking-wider">
+                {isText ? 'Text Color' : 'Stroke Color'}
+              </span>
+              <label
+                title={`Custom Color Picker (${currentColor})`}
+                className="relative w-5 h-5 rounded-full cursor-pointer flex items-center justify-center border border-[#dee2e6] hover:scale-110 active:scale-95 transition-transform overflow-hidden shadow-xs"
+                style={{
+                  background:
+                    'conic-gradient(from 90deg, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff0080, #ff0000)',
+                }}
+              >
+                <div
+                  className="w-2 h-2 rounded-full border border-white/90"
+                  style={{ backgroundColor: currentColor }}
+                />
+                <input
+                  type="color"
+                  value={
+                    currentColor.startsWith('#') && currentColor.length === 7
+                      ? currentColor
+                      : '#000000'
+                  }
+                  onChange={(e) => onChangeColor(e.target.value)}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                />
+              </label>
             </div>
             <div className="grid grid-cols-4 gap-1.5">
               {COLORS.map((c) => {
