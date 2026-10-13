@@ -10,13 +10,23 @@ import {
   Circle,
   Minus,
   MoveRight,
+  MoveLeft,
+  MoveUp,
+  MoveDown,
   MoveHorizontal,
+  ChevronRight,
   Diamond,
   Triangle,
+  Pentagon,
+  Hexagon,
+  Octagon,
   Star,
   Heart,
-  Hexagon,
   Cloud,
+  Zap,
+  Spline,
+  MessageSquare,
+  MessageCircle,
   Type,
   StickyNote,
   Eraser,
@@ -29,6 +39,70 @@ import {
 } from 'lucide-react'
 import { COLORS, STROKE_WIDTHS } from '@/features/board/elements'
 
+function RightTriangleIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="4,4 4,20 20,20" />
+    </svg>
+  )
+}
+
+function HeptagonIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12,3 19,6 21,14 16,21 8,21 3,14 5,6" />
+    </svg>
+  )
+}
+
+function TrapezoidIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="7,5 17,5 21,19 3,19" />
+    </svg>
+  )
+}
+
+function ParallelogramIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="8,5 21,5 16,19 3,19" />
+    </svg>
+  )
+}
+
+function FourArrowIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l-3 3h6zM12 22l-3-3h6zM2 12l3-3v6zM22 12l-3-3v6zM12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+function Star4Icon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z" />
+    </svg>
+  )
+}
+
+function Star6Icon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12,2 15,8 21,8 17,12 19,18 12,15 5,18 7,12 3,8 9,8" />
+    </svg>
+  )
+}
+
+function RoundedRectIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
+    </svg>
+  )
+}
+
 const PRIMARY_TOOLS = [
   { id: 'select', label: 'Select / Move', shortcut: 'V', icon: MousePointer },
   { id: 'pan', label: 'Hand / Pan', shortcut: 'H', icon: Hand },
@@ -38,17 +112,44 @@ const PRIMARY_TOOLS = [
 ]
 
 const SHAPES_LIST = [
-  { id: 'rectangle', label: 'Rectangle', icon: Square, category: 'Basic Shapes' },
-  { id: 'circle', label: 'Circle', icon: Circle, category: 'Basic Shapes' },
-  { id: 'diamond', label: 'Diamond', icon: Diamond, category: 'Basic Shapes' },
-  { id: 'triangle', label: 'Triangle', icon: Triangle, category: 'Basic Shapes' },
-  { id: 'hexagon', label: 'Hexagon', icon: Hexagon, category: 'Basic Shapes' },
-  { id: 'star', label: 'Star', icon: Star, category: 'Special Shapes' },
-  { id: 'heart', label: 'Heart', icon: Heart, category: 'Special Shapes' },
-  { id: 'cloud', label: 'Cloud', icon: Cloud, category: 'Special Shapes' },
-  { id: 'line', label: 'Line', icon: Minus, category: 'Connectors' },
-  { id: 'arrow', label: 'Arrow', icon: MoveRight, category: 'Connectors' },
-  { id: 'double-arrow', label: 'Double Arrow', icon: MoveHorizontal, category: 'Connectors' },
+  // 1. Basic & Geometric Shapes
+  { id: 'rectangle', label: 'Rectangle', icon: Square, category: 'Basic & Geometric Shapes' },
+  { id: 'rounded-rectangle', label: 'Rounded Rectangle', icon: RoundedRectIcon, category: 'Basic & Geometric Shapes' },
+  { id: 'circle', label: 'Oval / Circle', icon: Circle, category: 'Basic & Geometric Shapes' },
+  { id: 'triangle', label: 'Triangle', icon: Triangle, category: 'Basic & Geometric Shapes' },
+  { id: 'right-triangle', label: 'Right Triangle', icon: RightTriangleIcon, category: 'Basic & Geometric Shapes' },
+  { id: 'diamond', label: 'Diamond', icon: Diamond, category: 'Basic & Geometric Shapes' },
+  { id: 'pentagon', label: 'Pentagon (5-sided)', icon: Pentagon, category: 'Basic & Geometric Shapes' },
+  { id: 'hexagon', label: 'Hexagon (6-sided)', icon: Hexagon, category: 'Basic & Geometric Shapes' },
+  { id: 'heptagon', label: 'Heptagon (7-sided)', icon: HeptagonIcon, category: 'Basic & Geometric Shapes' },
+  { id: 'octagon', label: 'Octagon (8-sided)', icon: Octagon, category: 'Basic & Geometric Shapes' },
+  { id: 'trapezoid', label: 'Trapezoid', icon: TrapezoidIcon, category: 'Basic & Geometric Shapes' },
+  { id: 'parallelogram', label: 'Parallelogram', icon: ParallelogramIcon, category: 'Basic & Geometric Shapes' },
+
+  // 2. Lines & Curves
+  { id: 'line', label: 'Line', icon: Minus, category: 'Lines & Curves' },
+  { id: 'curve', label: 'Curve', icon: Spline, category: 'Lines & Curves' },
+  { id: 'double-arrow', label: 'Double Arrow', icon: MoveHorizontal, category: 'Lines & Curves' },
+
+  // 3. Arrows
+  { id: 'arrow-right', label: 'Right Arrow', icon: MoveRight, category: 'Arrows' },
+  { id: 'arrow-left', label: 'Left Arrow', icon: MoveLeft, category: 'Arrows' },
+  { id: 'arrow-up', label: 'Up Arrow', icon: MoveUp, category: 'Arrows' },
+  { id: 'arrow-down', label: 'Down Arrow', icon: MoveDown, category: 'Arrows' },
+  { id: 'arrow-four', label: 'Four-point Arrow', icon: FourArrowIcon, category: 'Arrows' },
+  { id: 'chevron', label: 'Chevron Arrow', icon: ChevronRight, category: 'Arrows' },
+
+  // 4. Stars & Symbols
+  { id: 'star-4', label: 'Four-point Star', icon: Star4Icon, category: 'Stars & Symbols' },
+  { id: 'star', label: 'Five-point Star', icon: Star, category: 'Stars & Symbols' },
+  { id: 'star-6', label: 'Six-point Star', icon: Star6Icon, category: 'Stars & Symbols' },
+  { id: 'heart', label: 'Heart', icon: Heart, category: 'Stars & Symbols' },
+  { id: 'lightning', label: 'Lightning Bolt', icon: Zap, category: 'Stars & Symbols' },
+
+  // 5. Callouts (Speech & Thought Bubbles)
+  { id: 'callout-rect', label: 'Rect Callout', icon: MessageSquare, category: 'Callouts' },
+  { id: 'callout-oval', label: 'Oval Callout', icon: MessageCircle, category: 'Callouts' },
+  { id: 'callout-cloud', label: 'Cloud Callout', icon: Cloud, category: 'Callouts' },
 ]
 
 const ANNOTATION_TOOLS = [
@@ -237,21 +338,118 @@ export default function Toolbar({
 
             {/* Shapes Dropdown Popover */}
             {shapesOpen && (
-              <div className="absolute top-full mt-2.5 left-1/2 -translate-x-1/2 bg-white/98 backdrop-blur-md rounded-2xl border border-[#e9ecef] shadow-[0_16px_38px_-4px_rgba(0,0,0,0.18)] p-3 w-68 z-50 select-none animate-in fade-in zoom-in-95 duration-100">
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#f1f3f5]">
-                  <span className="text-xs font-semibold text-[#343a40]">Shapes & Diagrams</span>
-                  <span className="text-[10px] text-[#868e96] bg-[#f8f9fa] px-1.5 py-0.5 rounded-md border border-[#e9ecef] font-medium">
-                    11 Shapes
+              <div className="absolute top-full mt-2.5 left-1/2 -translate-x-1/2 bg-white/98 backdrop-blur-md rounded-2xl border border-[#e9ecef] shadow-[0_16px_40px_-4px_rgba(0,0,0,0.18)] p-3.5 w-[360px] max-h-[75vh] overflow-y-auto z-50 select-none animate-in fade-in zoom-in-95 duration-100">
+                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-[#f1f3f5]">
+                  <span className="text-xs font-semibold text-[#343a40]">Shapes & Symbols</span>
+                  <span className="text-[10px] text-[#1971c2] bg-[#e7f5ff] px-2 py-0.5 rounded-full border border-[#d0ebff] font-semibold">
+                    {SHAPES_LIST.length} Shapes
                   </span>
                 </div>
 
-                {/* Geometric Shapes */}
-                <div className="mb-2.5">
+                {/* 1. Basic & Geometric Shapes */}
+                <div className="mb-3">
                   <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
-                    Geometric Shapes
+                    Basic & Geometric
+                  </div>
+                  <div className="grid grid-cols-6 gap-1">
+                    {SHAPES_LIST.filter((s) => s.category === 'Basic & Geometric Shapes').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          aria-label={shape.label}
+                          className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Lines & Curves */}
+                <div className="mb-3">
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Lines & Curves
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {SHAPES_LIST.filter((s) => s.category === 'Lines & Curves').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          aria-label={shape.label}
+                          className={`h-8 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span className="text-[11px] font-medium truncate">{shape.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Arrows */}
+                <div className="mb-3">
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Arrows
+                  </div>
+                  <div className="grid grid-cols-6 gap-1">
+                    {SHAPES_LIST.filter((s) => s.category === 'Arrows').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          aria-label={shape.label}
+                          className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 4. Stars & Symbols */}
+                <div className="mb-3">
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Stars & Symbols
                   </div>
                   <div className="grid grid-cols-5 gap-1">
-                    {SHAPES_LIST.filter((s) => s.category === 'Basic Shapes').map((shape) => {
+                    {SHAPES_LIST.filter((s) => s.category === 'Stars & Symbols').map((shape) => {
                       const Icon = shape.icon
                       const isSelected = activeTool === shape.id
                       return (
@@ -263,7 +461,8 @@ export default function Toolbar({
                             setShapesOpen(false)
                           }}
                           title={shape.label}
-                          className={`p-2 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                          aria-label={shape.label}
+                          className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
                               : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
@@ -276,45 +475,13 @@ export default function Toolbar({
                   </div>
                 </div>
 
-                {/* Special Shapes & Badges */}
-                <div className="mb-2.5">
-                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
-                    Badges & Icons
-                  </div>
-                  <div className="grid grid-cols-3 gap-1">
-                    {SHAPES_LIST.filter((s) => s.category === 'Special Shapes').map((shape) => {
-                      const Icon = shape.icon
-                      const isSelected = activeTool === shape.id
-                      return (
-                        <button
-                          key={shape.id}
-                          onClick={() => {
-                            onSelectTool(shape.id)
-                            setSelectedShapeId(shape.id)
-                            setShapesOpen(false)
-                          }}
-                          title={shape.label}
-                          className={`py-1.5 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
-                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span className="text-[11px] font-medium">{shape.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Connectors & Arrows */}
+                {/* 5. Callouts (Speech & Thought Bubbles) */}
                 <div>
                   <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
-                    Connectors & Arrows
+                    Callouts (Speech & Thought)
                   </div>
-                  <div className="grid grid-cols-3 gap-1">
-                    {SHAPES_LIST.filter((s) => s.category === 'Connectors').map((shape) => {
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {SHAPES_LIST.filter((s) => s.category === 'Callouts').map((shape) => {
                       const Icon = shape.icon
                       const isSelected = activeTool === shape.id
                       return (
@@ -326,7 +493,8 @@ export default function Toolbar({
                             setShapesOpen(false)
                           }}
                           title={shape.label}
-                          className={`py-1.5 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          aria-label={shape.label}
+                          className={`h-8 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
                               : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'

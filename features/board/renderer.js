@@ -436,6 +436,417 @@ export function drawDoubleArrow(ctx, el) {
   ctx.fill()
 }
 
+export function drawRoundedRectangle(ctx, el) {
+  const r = Math.min(16, Math.abs(el.width) / 4, Math.abs(el.height) / 4)
+  ctx.beginPath()
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(el.x, el.y, el.width, el.height, r)
+  } else {
+    ctx.rect(el.x, el.y, el.width, el.height)
+  }
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.stroke()
+}
+
+export function drawRightTriangle(ctx, el) {
+  ctx.beginPath()
+  ctx.moveTo(el.x, el.y)
+  ctx.lineTo(el.x, el.y + el.height)
+  ctx.lineTo(el.x + el.width, el.y + el.height)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawRegularPolygon(ctx, el, sides, startAngle = -Math.PI / 2) {
+  const cx = el.x + el.width / 2
+  const cy = el.y + el.height / 2
+  const rx = Math.abs(el.width) / 2
+  const ry = Math.abs(el.height) / 2
+  ctx.beginPath()
+  for (let i = 0; i < sides; i++) {
+    const angle = startAngle + (i * 2 * Math.PI) / sides
+    const px = cx + rx * Math.cos(angle)
+    const py = cy + ry * Math.sin(angle)
+    if (i === 0) ctx.moveTo(px, py)
+    else ctx.lineTo(px, py)
+  }
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawTrapezoid(ctx, el) {
+  const inset = el.width * 0.2
+  ctx.beginPath()
+  ctx.moveTo(el.x + inset, el.y)
+  ctx.lineTo(el.x + el.width - inset, el.y)
+  ctx.lineTo(el.x + el.width, el.y + el.height)
+  ctx.lineTo(el.x, el.y + el.height)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawParallelogram(ctx, el) {
+  const skew = el.width * 0.25
+  ctx.beginPath()
+  ctx.moveTo(el.x + skew, el.y)
+  ctx.lineTo(el.x + el.width, el.y)
+  ctx.lineTo(el.x + el.width - skew, el.y + el.height)
+  ctx.lineTo(el.x, el.y + el.height)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawBlockArrowRight(ctx, el) {
+  const x = el.x, y = el.y, w = el.width, h = el.height
+  const headW = w * 0.45
+  const stemH = h * 0.4
+  const stemY = y + (h - stemH) / 2
+  ctx.beginPath()
+  ctx.moveTo(x, stemY)
+  ctx.lineTo(x + w - headW, stemY)
+  ctx.lineTo(x + w - headW, y)
+  ctx.lineTo(x + w, y + h / 2)
+  ctx.lineTo(x + w - headW, y + h)
+  ctx.lineTo(x + w - headW, stemY + stemH)
+  ctx.lineTo(x, stemY + stemH)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawBlockArrowLeft(ctx, el) {
+  const x = el.x, y = el.y, w = el.width, h = el.height
+  const headW = w * 0.45
+  const stemH = h * 0.4
+  const stemY = y + (h - stemH) / 2
+  ctx.beginPath()
+  ctx.moveTo(x + w, stemY)
+  ctx.lineTo(x + headW, stemY)
+  ctx.lineTo(x + headW, y)
+  ctx.lineTo(x, y + h / 2)
+  ctx.lineTo(x + headW, y + h)
+  ctx.lineTo(x + headW, stemY + stemH)
+  ctx.lineTo(x + w, stemY + stemH)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawBlockArrowUp(ctx, el) {
+  const x = el.x, y = el.y, w = el.width, h = el.height
+  const headH = h * 0.45
+  const stemW = w * 0.4
+  const stemX = x + (w - stemW) / 2
+  ctx.beginPath()
+  ctx.moveTo(stemX, y + h)
+  ctx.lineTo(stemX, y + headH)
+  ctx.lineTo(x, y + headH)
+  ctx.lineTo(x + w / 2, y)
+  ctx.lineTo(x + w, y + headH)
+  ctx.lineTo(stemX + stemW, y + headH)
+  ctx.lineTo(stemX + stemW, y + h)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawBlockArrowDown(ctx, el) {
+  const x = el.x, y = el.y, w = el.width, h = el.height
+  const headH = h * 0.45
+  const stemW = w * 0.4
+  const stemX = x + (w - stemW) / 2
+  ctx.beginPath()
+  ctx.moveTo(stemX, y)
+  ctx.lineTo(stemX, y + h - headH)
+  ctx.lineTo(x, y + h - headH)
+  ctx.lineTo(x + w / 2, y + h)
+  ctx.lineTo(x + w, y + h - headH)
+  ctx.lineTo(stemX + stemW, y + h - headH)
+  ctx.lineTo(stemX + stemW, y)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawFourWayArrow(ctx, el) {
+  const x = el.x, y = el.y, w = el.width, h = el.height
+  const cx = x + w / 2, cy = y + h / 2
+  const stemX = w * 0.12, stemY = h * 0.12
+  const headW = w * 0.28, headH = h * 0.28
+
+  ctx.beginPath()
+  // Up tip
+  ctx.moveTo(cx, y)
+  ctx.lineTo(cx + headW, y + headH)
+  ctx.lineTo(cx + stemX, y + headH)
+  // Right tip
+  ctx.lineTo(cx + stemX, cy - stemY)
+  ctx.lineTo(x + w - headW, cy - stemY)
+  ctx.lineTo(x + w - headW, cy - headH)
+  ctx.lineTo(x + w, cy)
+  ctx.lineTo(x + w - headW, cy + headH)
+  ctx.lineTo(x + w - headW, cy + stemY)
+  // Down tip
+  ctx.lineTo(cx + stemX, cy + stemY)
+  ctx.lineTo(cx + stemX, y + h - headH)
+  ctx.lineTo(cx + headW, y + h - headH)
+  ctx.lineTo(cx, y + h)
+  ctx.lineTo(cx - headW, y + h - headH)
+  ctx.lineTo(cx - stemX, y + h - headH)
+  // Left tip
+  ctx.lineTo(cx - stemX, cy + stemY)
+  ctx.lineTo(x + headW, cy + stemY)
+  ctx.lineTo(x + headW, cy + headH)
+  ctx.lineTo(x, cy)
+  ctx.lineTo(x + headW, cy - headH)
+  ctx.lineTo(x + headW, cy - stemY)
+  ctx.lineTo(cx - stemX, cy - stemY)
+  ctx.lineTo(cx - stemX, y + headH)
+  ctx.lineTo(cx - headW, y + headH)
+  ctx.closePath()
+
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawChevron(ctx, el) {
+  const x = el.x, y = el.y, w = el.width, h = el.height
+  const indent = w * 0.35
+  ctx.beginPath()
+  ctx.moveTo(x, y)
+  ctx.lineTo(x + w - indent, y)
+  ctx.lineTo(x + w, y + h / 2)
+  ctx.lineTo(x + w - indent, y + h)
+  ctx.lineTo(x, y + h)
+  ctx.lineTo(x + indent, y + h / 2)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawNPointStar(ctx, el, points, innerRatio = 0.45) {
+  const cx = el.x + el.width / 2
+  const cy = el.y + el.height / 2
+  const rx = Math.abs(el.width) / 2
+  const ry = Math.abs(el.height) / 2
+  const step = Math.PI / points
+  ctx.beginPath()
+  for (let i = 0; i < 2 * points; i++) {
+    const rX = i % 2 === 0 ? rx : rx * innerRatio
+    const rY = i % 2 === 0 ? ry : ry * innerRatio
+    const angle = i * step - Math.PI / 2
+    const px = cx + rX * Math.cos(angle)
+    const py = cy + rY * Math.sin(angle)
+    if (i === 0) ctx.moveTo(px, py)
+    else ctx.lineTo(px, py)
+  }
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawLightning(ctx, el) {
+  const x = el.x, y = el.y, w = el.width, h = el.height
+  ctx.beginPath()
+  ctx.moveTo(x + w * 0.48, y)
+  ctx.lineTo(x + w * 0.82, y)
+  ctx.lineTo(x + w * 0.42, y + h * 0.48)
+  ctx.lineTo(x + w * 0.78, y + h * 0.48)
+  ctx.lineTo(x + w * 0.15, y + h)
+  ctx.lineTo(x + w * 0.48, y + h * 0.58)
+  ctx.lineTo(x + w * 0.22, y + h * 0.58)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawCalloutRect(ctx, el) {
+  const x = el.x, y = el.y, w = el.width, h = el.height
+  const bodyH = h * 0.78
+  const r = Math.min(12, w / 6, bodyH / 6)
+  const tailX1 = x + w * 0.2
+  const tailX2 = x + w * 0.4
+  const tailTipX = x + w * 0.1
+  const tailTipY = y + h
+
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + w - r, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + bodyH - r)
+  ctx.quadraticCurveTo(x + w, y + bodyH, x + w - r, y + bodyH)
+  ctx.lineTo(tailX2, y + bodyH)
+  ctx.lineTo(tailTipX, tailTipY)
+  ctx.lineTo(tailX1, y + bodyH)
+  ctx.lineTo(x + r, y + bodyH)
+  ctx.quadraticCurveTo(x, y + bodyH, x, y + bodyH - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
+
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+export function drawCalloutOval(ctx, el) {
+  const x = el.x, y = el.y, w = el.width, h = el.height
+  const bodyH = h * 0.8
+  const cx = x + w / 2, cy = y + bodyH / 2
+  const rx = Math.abs(w) / 2, ry = Math.abs(bodyH) / 2
+
+  ctx.beginPath()
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.stroke()
+
+  // Tail triangle
+  ctx.beginPath()
+  ctx.moveTo(cx - rx * 0.4, cy + ry * 0.85)
+  ctx.lineTo(x + w * 0.1, y + h)
+  ctx.lineTo(cx - rx * 0.1, cy + ry * 0.95)
+  ctx.closePath()
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.stroke()
+}
+
+export function drawCalloutCloud(ctx, el) {
+  const x = el.x, y = el.y, w = el.width, h = el.height
+  const bodyH = h * 0.78
+  drawCloud(ctx, { ...el, height: bodyH })
+
+  const dot1R = Math.min(w, h) * 0.05
+  const dot2R = Math.min(w, h) * 0.03
+  ctx.beginPath()
+  ctx.arc(x + w * 0.25, y + bodyH + dot1R * 1.5, dot1R, 0, Math.PI * 2)
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.arc(x + w * 0.15, y + h - dot2R, dot2R, 0, Math.PI * 2)
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.stroke()
+}
+
+export function drawCurve(ctx, el) {
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineCap = 'round'
+  const midX = (el.x1 + el.x2) / 2
+  const midY = (el.y1 + el.y2) / 2
+  const dx = el.x2 - el.x1
+  const dy = el.y2 - el.y1
+  const cpx = midX - dy * 0.25
+  const cpy = midY + dx * 0.25
+
+  ctx.beginPath()
+  ctx.moveTo(el.x1, el.y1)
+  ctx.quadraticCurveTo(cpx, cpy, el.x2, el.y2)
+  ctx.stroke()
+}
+
 /**
  * Dispatch drawing to the correct renderer based on element type.
  * @param {CanvasRenderingContext2D} ctx
@@ -451,6 +862,9 @@ export function drawElement(ctx, el) {
     case 'rectangle':
       drawRectangle(ctx, el)
       break
+    case 'rounded-rectangle':
+      drawRoundedRectangle(ctx, el)
+      break
     case 'circle':
       drawCircle(ctx, el)
       break
@@ -460,20 +874,77 @@ export function drawElement(ctx, el) {
     case 'triangle':
       drawTriangle(ctx, el)
       break
+    case 'right-triangle':
+      drawRightTriangle(ctx, el)
+      break
+    case 'pentagon':
+      drawRegularPolygon(ctx, el, 5, -Math.PI / 2)
+      break
+    case 'hexagon':
+      drawHexagon(ctx, el)
+      break
+    case 'heptagon':
+      drawRegularPolygon(ctx, el, 7, -Math.PI / 2)
+      break
+    case 'octagon':
+      drawRegularPolygon(ctx, el, 8, Math.PI / 8)
+      break
+    case 'trapezoid':
+      drawTrapezoid(ctx, el)
+      break
+    case 'parallelogram':
+      drawParallelogram(ctx, el)
+      break
+    case 'arrow-right':
+      drawBlockArrowRight(ctx, el)
+      break
+    case 'arrow-left':
+      drawBlockArrowLeft(ctx, el)
+      break
+    case 'arrow-up':
+      drawBlockArrowUp(ctx, el)
+      break
+    case 'arrow-down':
+      drawBlockArrowDown(ctx, el)
+      break
+    case 'arrow-four':
+      drawFourWayArrow(ctx, el)
+      break
+    case 'chevron':
+      drawChevron(ctx, el)
+      break
     case 'star':
       drawStar(ctx, el)
+      break
+    case 'star-4':
+      drawNPointStar(ctx, el, 4, 0.38)
+      break
+    case 'star-6':
+      drawNPointStar(ctx, el, 6, 0.52)
       break
     case 'heart':
       drawHeart(ctx, el)
       break
-    case 'hexagon':
-      drawHexagon(ctx, el)
+    case 'lightning':
+      drawLightning(ctx, el)
+      break
+    case 'callout-rect':
+      drawCalloutRect(ctx, el)
+      break
+    case 'callout-oval':
+      drawCalloutOval(ctx, el)
+      break
+    case 'callout-cloud':
+      drawCalloutCloud(ctx, el)
       break
     case 'cloud':
       drawCloud(ctx, el)
       break
     case 'line':
       drawLine(ctx, el)
+      break
+    case 'curve':
+      drawCurve(ctx, el)
       break
     case 'arrow':
       drawArrow(ctx, el)

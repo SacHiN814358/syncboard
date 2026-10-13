@@ -6,6 +6,7 @@
  */
 
 import { distanceBetween, pointInRect } from '@/lib/utils'
+import { BOX_SHAPES, LINE_SHAPES } from './elements'
 
 /**
  * Get the axis-aligned bounding box for any element.
@@ -13,6 +14,21 @@ import { distanceBetween, pointInRect } from '@/lib/utils'
  * @returns {{x: number, y: number, width: number, height: number} | null}
  */
 export function getElementBounds(el) {
+  if (BOX_SHAPES.includes(el.type) || el.type === 'sticky') {
+    return { x: el.x, y: el.y, width: el.width, height: el.height }
+  }
+
+  if (LINE_SHAPES.includes(el.type)) {
+    const minX = Math.min(el.x1, el.x2)
+    const minY = Math.min(el.y1, el.y2)
+    return {
+      x: minX,
+      y: minY,
+      width: Math.max(Math.abs(el.x2 - el.x1), 1),
+      height: Math.max(Math.abs(el.y2 - el.y1), 1),
+    }
+  }
+
   switch (el.type) {
     case 'pen':
     case 'brush': {
@@ -32,16 +48,6 @@ export function getElementBounds(el) {
       }
     }
 
-    case 'rectangle':
-    case 'sticky':
-    case 'diamond':
-    case 'triangle':
-    case 'star':
-    case 'heart':
-    case 'hexagon':
-    case 'cloud':
-      return { x: el.x, y: el.y, width: el.width, height: el.height }
-
     case 'circle':
       return {
         x: el.x - Math.abs(el.radiusX),
@@ -50,21 +56,7 @@ export function getElementBounds(el) {
         height: Math.abs(el.radiusY) * 2,
       }
 
-    case 'line':
-    case 'arrow':
-    case 'double-arrow': {
-      const minX = Math.min(el.x1, el.x2)
-      const minY = Math.min(el.y1, el.y2)
-      return {
-        x: minX,
-        y: minY,
-        width: Math.max(Math.abs(el.x2 - el.x1), 1),
-        height: Math.max(Math.abs(el.y2 - el.y1), 1),
-      }
-    }
-
     case 'text': {
-      // Approximate text bounds — use a rough estimate
       const approxWidth = el.text ? el.text.length * el.fontSize * 0.55 : 50
       const lines = el.text ? el.text.split('\n').length : 1
       return {
@@ -90,34 +82,33 @@ export function getElementBounds(el) {
  * @returns {boolean}
  */
 export function hitTestElement(wx, wy, el, tolerance = 8) {
+  if (BOX_SHAPES.includes(el.type) || el.type === 'sticky') {
+    return hitTestRect(wx, wy, el, tolerance)
+  }
+
+  if (LINE_SHAPES.includes(el.type)) {
+    return hitTestLine(wx, wy, el.x1, el.y1, el.x2, el.y2, tolerance)
+  }
+
   switch (el.type) {
     case 'pen':
     case 'brush':
       return hitTestPen(wx, wy, el, tolerance)
 
-    case 'rectangle':
-    case 'sticky':
-    case 'diamond':
-    case 'triangle':
-    case 'star':
-    case 'heart':
-    case 'hexagon':
-    case 'cloud':
-      return hitTestRect(wx, wy, el, tolerance)
-
     case 'circle':
       return hitTestEllipse(wx, wy, el, tolerance)
-
-    case 'line':
-    case 'arrow':
-    case 'double-arrow':
-      return hitTestLine(wx, wy, el.x1, el.y1, el.x2, el.y2, tolerance)
 
     case 'text': {
       const bounds = getElementBounds(el)
       if (!bounds) return false
-      return pointInRect(wx, wy, bounds.x - tolerance, bounds.y - tolerance,
-        bounds.width + tolerance * 2, bounds.height + tolerance * 2)
+      return pointInRect(
+        wx,
+        wy,
+        bounds.x - tolerance,
+        bounds.y - tolerance,
+        bounds.width + tolerance * 2,
+        bounds.height + tolerance * 2
+      )
     }
 
     default:

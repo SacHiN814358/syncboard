@@ -7,8 +7,41 @@
  */
 
 /**
- * @typedef {'select' | 'pan' | 'pen' | 'brush' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'double-arrow' | 'triangle' | 'diamond' | 'star' | 'heart' | 'hexagon' | 'cloud' | 'text' | 'sticky' | 'eraser'} ToolType
+ * @typedef {'select' | 'pan' | 'pen' | 'brush' | 'rectangle' | 'rounded-rectangle' | 'circle' | 'line' | 'curve' | 'arrow' | 'double-arrow' | 'triangle' | 'right-triangle' | 'diamond' | 'pentagon' | 'hexagon' | 'heptagon' | 'octagon' | 'trapezoid' | 'parallelogram' | 'arrow-right' | 'arrow-left' | 'arrow-up' | 'arrow-down' | 'arrow-four' | 'chevron' | 'star-4' | 'star' | 'star-6' | 'heart' | 'lightning' | 'callout-rect' | 'callout-oval' | 'callout-cloud' | 'cloud' | 'text' | 'sticky' | 'eraser'} ToolType
  */
+
+export const BOX_SHAPES = [
+  'rectangle',
+  'rounded-rectangle',
+  'triangle',
+  'right-triangle',
+  'diamond',
+  'pentagon',
+  'hexagon',
+  'heptagon',
+  'octagon',
+  'trapezoid',
+  'parallelogram',
+  'arrow-right',
+  'arrow-left',
+  'arrow-up',
+  'arrow-down',
+  'arrow-four',
+  'chevron',
+  'star-4',
+  'star',
+  'star-6',
+  'heart',
+  'lightning',
+  'callout-rect',
+  'callout-oval',
+  'callout-cloud',
+  'cloud',
+]
+
+export const LINE_SHAPES = ['line', 'curve', 'arrow', 'double-arrow']
+
+export const CLOSED_SHAPES = [...BOX_SHAPES, 'circle']
 
 /**
  * @typedef {Object} PenElement

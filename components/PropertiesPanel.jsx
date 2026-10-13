@@ -5,6 +5,8 @@ import {
   COLORS,
   STROKE_WIDTHS,
   STICKY_COLORS,
+  CLOSED_SHAPES,
+  LINE_SHAPES,
 } from '@/features/board/elements'
 
 const FONT_SIZES = [
@@ -51,15 +53,18 @@ export default function PropertiesPanel({
 }) {
   const isSticky = activeTool === 'sticky' || selectedElement?.type === 'sticky'
   const isText = activeTool === 'text' || selectedElement?.type === 'text'
-  const ALL_SHAPES_WITH_FILL = ['rectangle', 'circle', 'diamond', 'triangle', 'star', 'heart', 'hexagon', 'cloud']
-  const ALL_SHAPES_WITH_STROKE = ['pen', 'rectangle', 'circle', 'line', 'arrow', 'double-arrow', 'diamond', 'triangle', 'star', 'heart', 'hexagon', 'cloud']
 
   const hasStroke =
-    ALL_SHAPES_WITH_STROKE.includes(activeTool) ||
-    ALL_SHAPES_WITH_STROKE.includes(selectedElement?.type)
+    CLOSED_SHAPES.includes(activeTool) ||
+    CLOSED_SHAPES.includes(selectedElement?.type) ||
+    LINE_SHAPES.includes(activeTool) ||
+    LINE_SHAPES.includes(selectedElement?.type) ||
+    activeTool === 'pen' ||
+    selectedElement?.type === 'pen'
+
   const hasFill =
-    ALL_SHAPES_WITH_FILL.includes(activeTool) ||
-    ALL_SHAPES_WITH_FILL.includes(selectedElement?.type)
+    CLOSED_SHAPES.includes(activeTool) ||
+    CLOSED_SHAPES.includes(selectedElement?.type)
 
   // Don't show properties if tool is pan or eraser with no selection
   if (['pan', 'eraser'].includes(activeTool) && !selectedElement) {
