@@ -7,7 +7,7 @@
  */
 
 /**
- * @typedef {'select' | 'pan' | 'pen' | 'brush' | 'rectangle' | 'rounded-rectangle' | 'circle' | 'line' | 'curve' | 'arrow' | 'double-arrow' | 'triangle' | 'right-triangle' | 'diamond' | 'pentagon' | 'hexagon' | 'heptagon' | 'octagon' | 'trapezoid' | 'parallelogram' | 'arrow-right' | 'arrow-left' | 'arrow-up' | 'arrow-down' | 'arrow-four' | 'chevron' | 'star-4' | 'star' | 'star-6' | 'heart' | 'lightning' | 'callout-rect' | 'callout-oval' | 'callout-cloud' | 'cloud' | 'text' | 'sticky' | 'eraser'} ToolType
+ * @typedef {'select' | 'pan' | 'pen' | 'brush' | 'bucket' | 'rectangle' | 'rounded-rectangle' | 'circle' | 'line' | 'curve' | 'arrow' | 'double-arrow' | 'triangle' | 'right-triangle' | 'diamond' | 'pentagon' | 'hexagon' | 'heptagon' | 'octagon' | 'trapezoid' | 'parallelogram' | 'arrow-right' | 'arrow-left' | 'arrow-up' | 'arrow-down' | 'arrow-four' | 'chevron' | 'star-4' | 'star' | 'star-6' | 'heart' | 'lightning' | 'callout-rect' | 'callout-oval' | 'callout-cloud' | 'cloud' | 'text' | 'sticky' | 'eraser'} ToolType
  */
 
 export const BOX_SHAPES = [

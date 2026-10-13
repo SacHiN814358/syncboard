@@ -317,6 +317,9 @@ export default function BoardWorkspace({ roomId }) {
         case 'x':
           setActiveTool('eraser')
           break
+        case 'g':
+          setActiveTool('bucket')
+          break
         case 'e':
           e.preventDefault()
           setReactionsPickerOpen((prev) => !prev)
@@ -400,6 +403,17 @@ export default function BoardWorkspace({ roomId }) {
             )
             handleElementsChange(updated)
             setSelectedElement({ ...selectedElement, color: c })
+          }
+        }}
+        currentFillColor={currentFillColor}
+        onChangeFillColor={(fill) => {
+          setCurrentFillColor(fill)
+          if (selectedElement) {
+            const updated = elements.map((el) =>
+              el.id === selectedElement.id ? { ...el, fillColor: fill } : el
+            )
+            handleElementsChange(updated)
+            setSelectedElement({ ...selectedElement, fillColor: fill })
           }
         }}
         currentStrokeWidth={currentStrokeWidth}

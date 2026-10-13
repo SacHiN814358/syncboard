@@ -290,6 +290,22 @@ export default function Canvas({
       return
     }
 
+    // Paint Bucket Tool: Fill clicked shape with color
+    if (activeTool === 'bucket') {
+      const hit = findElementAtPoint(world.x, world.y, elements, 12 / viewport.zoom)
+      if (hit) {
+        const fillToApply = currentFillColor === 'transparent' ? currentColor : currentFillColor
+        const updated = elements.map((el) =>
+          el.id === hit.id ? { ...el, fillColor: fillToApply } : el
+        )
+        onElementsChange(updated)
+        onSelectElement(updated.find((el) => el.id === hit.id) || null)
+        needsRepaintRef.current = true
+      }
+      isInteractingRef.current = false
+      return
+    }
+
     // Drawing Tools: Pen, Shapes
     interactionModeRef.current = 'draw'
 
@@ -449,7 +465,13 @@ export default function Canvas({
 
     if (canvasRef.current) {
       canvasRef.current.style.cursor =
-        isSpacePressedRef.current || activeTool === 'pan' ? 'grab' : 'crosshair'
+        isSpacePressedRef.current || activeTool === 'pan'
+          ? 'grab'
+          : activeTool === 'select'
+          ? 'default'
+          : activeTool === 'bucket'
+          ? 'pointer'
+          : 'crosshair'
     }
 
     // Commit transient element

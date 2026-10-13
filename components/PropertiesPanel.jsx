@@ -64,7 +64,8 @@ export default function PropertiesPanel({
 
   const hasFill =
     CLOSED_SHAPES.includes(activeTool) ||
-    CLOSED_SHAPES.includes(selectedElement?.type)
+    CLOSED_SHAPES.includes(selectedElement?.type) ||
+    activeTool === 'bucket'
 
   // Don't show properties if tool is pan or eraser with no selection
   if (['pan', 'eraser'].includes(activeTool) && !selectedElement) {
@@ -178,13 +179,42 @@ export default function PropertiesPanel({
           </div>
         )}
 
-        {/* Fill Toggle for Shapes */}
+        {/* Fill Controls for Shapes & Bucket Tool */}
         {hasFill && (
           <div>
-            <div className="text-[11px] font-semibold text-[#868e96] mb-1.5 uppercase tracking-wider">
-              Fill Style
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] font-semibold text-[#868e96] uppercase tracking-wider">
+                Fill Color
+              </span>
+              {currentFillColor !== 'transparent' && (
+                <label
+                  title={`Custom Fill Color Picker (${currentFillColor})`}
+                  className="relative w-5 h-5 rounded-full cursor-pointer flex items-center justify-center border border-[#dee2e6] hover:scale-110 active:scale-95 transition-transform overflow-hidden shadow-xs"
+                  style={{
+                    background:
+                      'conic-gradient(from 90deg, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff0080, #ff0000)',
+                  }}
+                >
+                  <div
+                    className="w-2 h-2 rounded-full border border-white/90"
+                    style={{ backgroundColor: currentFillColor }}
+                  />
+                  <input
+                    type="color"
+                    value={
+                      currentFillColor.startsWith('#') && currentFillColor.length === 7
+                        ? currentFillColor
+                        : '#ffffff'
+                    }
+                    onChange={(e) => onChangeFillColor(e.target.value)}
+                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                  />
+                </label>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-1 bg-[#f1f3f5] p-0.5 rounded-lg">
+
+            {/* Fill Mode Switcher */}
+            <div className="grid grid-cols-3 gap-1 bg-[#f1f3f5] p-0.5 rounded-lg mb-2">
               <button
                 onClick={() => onChangeFillColor('transparent')}
                 className={`py-1 rounded-md text-[11px] font-medium transition-all ${
@@ -193,19 +223,56 @@ export default function PropertiesPanel({
                     : 'text-[#868e96] hover:text-[#212529]'
                 }`}
               >
-                None
+                No Fill
               </button>
               <button
-                onClick={() => onChangeFillColor(`${currentColor}18`)} // 10% opacity tint
+                onClick={() =>
+                  onChangeFillColor(
+                    currentFillColor === 'transparent' ? currentColor : currentFillColor
+                  )
+                }
                 className={`py-1 rounded-md text-[11px] font-medium transition-all ${
-                  currentFillColor !== 'transparent'
+                  currentFillColor !== 'transparent' &&
+                  !currentFillColor.endsWith('18') &&
+                  !currentFillColor.endsWith('22')
                     ? 'bg-white text-[#212529] shadow-xs'
                     : 'text-[#868e96] hover:text-[#212529]'
                 }`}
               >
-                Subtle Tint
+                Solid
+              </button>
+              <button
+                onClick={() => onChangeFillColor(`${currentColor}22`)}
+                className={`py-1 rounded-md text-[11px] font-medium transition-all ${
+                  currentFillColor.endsWith('18') || currentFillColor.endsWith('22')
+                    ? 'bg-white text-[#212529] shadow-xs'
+                    : 'text-[#868e96] hover:text-[#212529]'
+                }`}
+              >
+                Tint
               </button>
             </div>
+
+            {/* Fill Color Swatches (when Fill is active) */}
+            {currentFillColor !== 'transparent' && (
+              <div className="grid grid-cols-4 gap-1.5 pt-1">
+                {COLORS.map((c) => {
+                  const isSelected = currentFillColor === c
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => onChangeFillColor(c)}
+                      className="w-full h-6 rounded-md transition-all flex items-center justify-center border"
+                      style={{
+                        backgroundColor: c,
+                        borderColor: isSelected ? '#1971c2' : 'transparent',
+                        boxShadow: isSelected ? '0 0 0 2px white inset' : 'none',
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
