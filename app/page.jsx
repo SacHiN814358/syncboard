@@ -37,6 +37,9 @@ export default function HomePage() {
   const handleCreateBoard = () => {
     setIsCreating(true)
     const newCode = generateRoomCode()
+    try {
+      localStorage.setItem(`syncboard_host_${newCode}`, 'true')
+    } catch (_) {}
     toast.success(`Generated Room Code: ${newCode} 🎨`)
     router.push(`/board/${newCode}`)
   }

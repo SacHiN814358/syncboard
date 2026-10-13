@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Toaster, toast } from 'react-hot-toast'
+import { UserX } from 'lucide-react'
 import { createHistory } from './history'
 import { DEFAULT_VIEWPORT } from './elements'
 import { generateRoomCode } from '@/lib/utils'
@@ -66,6 +67,15 @@ export default function BoardWorkspace({ roomId }) {
   // 6. Multi-User Live Drawing Previews State
   const [remotePreviews, setRemotePreviews] = useState({})
 
+  // Host role detection (room creator / owner)
+  const [isHost, setIsHost] = useState(false)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && roomId) {
+      const stored = localStorage.getItem(`syncboard_host_${roomId}`) === 'true'
+      setIsHost(stored)
+    }
+  }, [roomId])
+
   // 7. Collaboration Hook (Supabase Realtime)
   const {
     currentUser,
@@ -74,7 +84,10 @@ export default function BoardWorkspace({ roomId }) {
     broadcastCursor,
     broadcastDrawPreview,
     broadcastElementsUpdate,
+    isKicked,
+    kickCollaborator,
   } = useCollaboration(roomId, {
+    isHost,
     onRemoteElementsChange: (remoteElements) => {
       setElements(remoteElements)
       historyRef.current.push(remoteElements)
@@ -140,6 +153,9 @@ export default function BoardWorkspace({ roomId }) {
   // Create brand new board with a fresh 6-digit room code
   const handleNewBoard = useCallback(() => {
     const newCode = generateRoomCode()
+    try {
+      localStorage.setItem(`syncboard_host_${newCode}`, 'true')
+    } catch (_) {}
     toast.success(`Creating new board ${newCode}...`)
     router.push(`/board/${newCode}`)
   }, [router])
@@ -318,6 +334,7 @@ export default function BoardWorkspace({ roomId }) {
         onOpenInvite={() => setInviteModalOpen(true)}
         onOpenJoinCode={() => setJoinCodeModalOpen(true)}
         onNewBoard={handleNewBoard}
+        isHost={isHost}
       />
 
       {/* 2. Paint-Style Ribbon Toolbar */}
@@ -461,12 +478,39 @@ export default function BoardWorkspace({ roomId }) {
         boardTitle={boardTitle}
         collaborators={collaborators}
         currentUser={currentUser}
+        isHost={isHost}
+        onKickUser={kickCollaborator}
       />
 
       <JoinCodeModal
         isOpen={joinCodeModalOpen}
         onClose={() => setJoinCodeModalOpen(false)}
       />
+
+      {/* 7. Kicked Out Overlay for Removed User */}
+      {isKicked && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl border border-[#ffc9c9] animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 rounded-full bg-[#fff5f5] text-[#e03131] flex items-center justify-center mx-auto mb-4 border border-[#ffc9c9]">
+              <UserX className="w-7 h-7" />
+            </div>
+            <h3 className="text-base font-bold text-[#212529] mb-1.5">
+              Removed from Workspace
+            </h3>
+            <p className="text-xs text-[#868e96] mb-6 leading-relaxed">
+              Board host ne aapko is workspace se remove kar diya hai. Aap ab is canvas ko draw ya view nahi kar sakte.
+            </p>
+            <button
+              onClick={() => {
+                window.location.href = '/'
+              }}
+              className="w-full py-2.5 px-4 rounded-xl bg-[#212529] hover:bg-black text-white text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+            >
+              Return to Home
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

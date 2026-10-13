@@ -18,7 +18,10 @@ import { COLLABORATOR_COLORS } from '@/features/board/elements'
  *   onRemoteDrawPreview?: (drawData: any) => void,
  * }} callbacks
  */
-export function useCollaboration(roomId, { onRemoteElementsChange, onRemoteDrawPreview } = {}) {
+export function useCollaboration(
+  roomId,
+  { onRemoteElementsChange, onRemoteDrawPreview, isHost = false } = {}
+) {
   const supabase = createClient()
   const channelRef = useRef(null)
 
@@ -52,6 +55,7 @@ export function useCollaboration(roomId, { onRemoteElementsChange, onRemoteDrawP
   const [collaborators, setCollaborators] = useState([])
   const [remoteCursors, setRemoteCursors] = useState({})
   const [isConnected, setIsConnected] = useState(false)
+  const [isKicked, setIsKicked] = useState(false)
   const lastCursorSendRef = useRef(0)
 
   useEffect(() => {
@@ -118,6 +122,25 @@ export function useCollaboration(roomId, { onRemoteElementsChange, onRemoteDrawP
       onRemoteElementsChange?.(payload.elements)
     })
 
+    // 5. Broadcast: Host removed/kicked a user
+    channel.on('broadcast', { event: 'kick_user' }, ({ payload }) => {
+      if (!payload) return
+      if (payload.targetUserId === currentUser.id) {
+        setIsKicked(true)
+        if (channelRef.current) {
+          supabase.removeChannel(channelRef.current)
+          channelRef.current = null
+        }
+      } else {
+        setCollaborators((prev) => prev.filter((p) => p.id !== payload.targetUserId))
+        setRemoteCursors((prev) => {
+          const next = { ...prev }
+          delete next[payload.targetUserId]
+          return next
+        })
+      }
+    })
+
     // Subscribe to channel
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
@@ -126,6 +149,7 @@ export function useCollaboration(roomId, { onRemoteElementsChange, onRemoteDrawP
           id: currentUser.id,
           name: currentUser.name,
           color: currentUser.color,
+          isHost: Boolean(isHost),
           joinedAt: new Date().toISOString(),
         })
       } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
@@ -209,11 +233,34 @@ export function useCollaboration(roomId, { onRemoteElementsChange, onRemoteDrawP
     })
   }, [currentUser.id])
 
+  /**
+   * Host kicks/removes an invited collaborator from this board.
+   */
+  const kickCollaborator = useCallback((targetUserId, targetUserName) => {
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'kick_user',
+      payload: {
+        targetUserId,
+        targetUserName,
+        kickedBy: currentUser.name,
+      },
+    })
+    setCollaborators((prev) => prev.filter((p) => p.id !== targetUserId))
+    setRemoteCursors((prev) => {
+      const next = { ...prev }
+      delete next[targetUserId]
+      return next
+    })
+  }, [currentUser.name])
+
   return {
     currentUser,
     collaborators,
     remoteCursors,
     isConnected,
+    isKicked,
+    kickCollaborator,
     broadcastCursor,
     broadcastDrawPreview,
     broadcastElementsUpdate,

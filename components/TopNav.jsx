@@ -47,6 +47,7 @@ export default function TopNav({
   onOpenInvite,
   onOpenJoinCode,
   onNewBoard,
+  isHost = false,
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState(boardTitle)
@@ -190,12 +191,16 @@ export default function TopNav({
         <div className="w-px h-4 bg-[#e9ecef]" />
 
         {/* Active Collaborator Avatars */}
-        <div className="flex items-center -space-x-1.5 overflow-hidden">
+        <div
+          onClick={onOpenInvite}
+          className="flex items-center -space-x-1.5 overflow-hidden cursor-pointer hover:opacity-85 transition-opacity"
+          title="Click to view & manage members"
+        >
           {/* Current user avatar */}
           <div
             className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-xs"
             style={{ backgroundColor: currentUser?.color || '#1971c2' }}
-            title={`You (${currentUser?.name})`}
+            title={isHost ? `You (Host 👑)` : `You (${currentUser?.name})`}
           >
             {currentUser?.name?.[0] || 'Y'}
           </div>
@@ -206,7 +211,7 @@ export default function TopNav({
               key={peer.id}
               className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-xs animate-in fade-in"
               style={{ backgroundColor: peer.color || '#2f9e44' }}
-              title={peer.name}
+              title={`${peer.name} (Click to manage)`}
             >
               {peer.name?.[0] || 'C'}
             </div>

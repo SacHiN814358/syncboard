@@ -1,11 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Copy, Check, Users, Link2, KeyRound } from 'lucide-react'
+import {
+  X,
+  Copy,
+  Check,
+  Users,
+  Link2,
+  KeyRound,
+  UserMinus,
+  Crown,
+  Shield,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 
 /**
- * Clean invite modal for sharing the Room Code and direct link.
+ * Clean invite modal for sharing the Room Code and managing collaborators.
  *
  * @param {{
  *   isOpen: boolean,
@@ -14,6 +24,8 @@ import toast from 'react-hot-toast'
  *   boardTitle: string,
  *   collaborators: any[],
  *   currentUser: any,
+ *   isHost: boolean,
+ *   onKickUser: (userId: string, userName: string) => void,
  * }} props
  */
 export default function InviteModal({
@@ -23,6 +35,8 @@ export default function InviteModal({
   boardTitle,
   collaborators,
   currentUser,
+  isHost = false,
+  onKickUser,
 }) {
   const [copiedCode, setCopiedCode] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
@@ -50,6 +64,13 @@ export default function InviteModal({
     }
   }
 
+  const handleRemove = (peerId, peerName) => {
+    if (confirm(`Kya aap "${peerName}" ko is workspace se remove karna chahte hain?`)) {
+      onKickUser?.(peerId, peerName)
+      toast.success(`Removed ${peerName} from whiteboard 🚫`)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150">
       <div
@@ -63,9 +84,17 @@ export default function InviteModal({
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-bold text-sm text-[#212529]">
-                Invite to Collaborator
-              </h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="font-bold text-sm text-[#212529]">
+                  Workspace Members
+                </h2>
+                {isHost && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-[#1971c2] bg-[#e7f5ff] px-1.5 py-0.5 rounded-full border border-[#d0ebff]">
+                    <Crown className="w-2.5 h-2.5" />
+                    Host
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-[#868e96] truncate max-w-[240px]">
                 {boardTitle || 'Untitled Board'}
               </p>
@@ -126,34 +155,49 @@ export default function InviteModal({
             </div>
           </div>
 
-          {/* Connected Collaborators */}
+          {/* Connected Collaborators & Host Moderation */}
           <div className="pt-2 border-t border-[#f1f3f5]">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-[#495057]">
-                Live in this Room ({collaborators.length + 1})
+              <span className="text-xs font-semibold text-[#495057] flex items-center gap-1.5">
+                <span>Live Collaborators ({collaborators.length + 1})</span>
+                {isHost && (
+                  <span className="text-[10px] text-[#1971c2] font-semibold bg-[#e7f5ff] px-1.5 py-0.5 rounded">
+                    Admin Controls Active
+                  </span>
+                )}
               </span>
               <span className="flex items-center gap-1 text-[11px] text-[#2f9e44] font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#2f9e44] animate-pulse" />
-                Live Sync Active
+                Live Sync
               </span>
             </div>
 
-            <div className="space-y-1.5 max-h-36 overflow-y-auto">
+            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
               {/* You */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-[#f8f9fa] text-xs">
+              <div className="flex items-center justify-between p-2 rounded-xl bg-[#f8f9fa] border border-[#e9ecef] text-xs">
                 <div className="flex items-center gap-2">
                   <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-xs"
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-xs shrink-0"
                     style={{ backgroundColor: currentUser?.color || '#1971c2' }}
                   >
                     {currentUser?.name?.[0] || 'Y'}
                   </div>
-                  <span className="font-medium text-[#212529]">
-                    {currentUser?.name || 'You'} (Host)
-                  </span>
+                  <div>
+                    <span className="font-semibold text-[#212529]">
+                      {currentUser?.name || 'You'}
+                    </span>
+                    <span className="ml-1 text-[10px] text-[#868e96]">(You)</span>
+                  </div>
                 </div>
-                <span className="text-[10px] text-[#868e96] bg-white px-1.5 py-0.5 rounded border border-[#e9ecef]">
-                  This Device
+                <span className="text-[10px] text-[#1971c2] bg-white px-2 py-0.5 rounded-full border border-[#dee2e6] font-semibold flex items-center gap-1">
+                  {isHost ? (
+                    <>
+                      <Crown className="w-2.5 h-2.5 text-amber-500" />
+                      Host
+                    </>
+                  ) : (
+                    'Member'
+                  )}
                 </span>
               </div>
 
@@ -161,23 +205,45 @@ export default function InviteModal({
               {collaborators.map((peer) => (
                 <div
                   key={peer.id}
-                  className="flex items-center justify-between p-2 rounded-lg bg-[#f8f9fa] text-xs"
+                  className="flex items-center justify-between p-2 rounded-xl bg-[#f8f9fa] border border-[#e9ecef] hover:border-[#ced4da] transition-all text-xs"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <div
-                      className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-xs"
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-xs shrink-0"
                       style={{ backgroundColor: peer.color || '#2f9e44' }}
                     >
                       {peer.name?.[0] || 'C'}
                     </div>
-                    <span className="font-medium text-[#212529]">{peer.name}</span>
+                    <div className="truncate">
+                      <span className="font-medium text-[#212529] block truncate">
+                        {peer.name}
+                      </span>
+                      <span className="text-[10px] text-[#2f9e44] block">
+                        Drawing live
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-[#2f9e44] font-medium">Connected</span>
+
+                  {/* Host Power: Remove/Kick Button */}
+                  {isHost ? (
+                    <button
+                      onClick={() => handleRemove(peer.id, peer.name)}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[#e03131] hover:text-white hover:bg-[#e03131] bg-[#fff5f5] border border-[#ffc9c9] transition-all flex items-center gap-1 cursor-pointer shrink-0 shadow-xs"
+                      title={`Remove ${peer.name} from room`}
+                    >
+                      <UserMinus className="w-3 h-3" />
+                      <span>Remove</span>
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-[#868e96] bg-white px-1.5 py-0.5 rounded border border-[#e9ecef]">
+                      Member
+                    </span>
+                  )}
                 </div>
               ))}
 
               {collaborators.length === 0 && (
-                <div className="p-3 text-center rounded-lg bg-[#f8f9fa] border border-dashed border-[#dee2e6] text-xs text-[#868e96]">
+                <div className="p-3 text-center rounded-xl bg-[#f8f9fa] border border-dashed border-[#dee2e6] text-xs text-[#868e96]">
                   Aapke alawa abhi koi aur connect nahi hua hai. Code share karein!
                 </div>
               )}
@@ -186,7 +252,10 @@ export default function InviteModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 bg-[#f8f9fa] border-t border-[#f1f3f5] flex justify-end">
+        <div className="px-5 py-3 bg-[#f8f9fa] border-t border-[#f1f3f5] flex items-center justify-between">
+          <p className="text-[11px] text-[#868e96]">
+            {isHost ? '👑 As Host, you can remove any member anytime.' : 'Invited Member'}
+          </p>
           <button
             onClick={onClose}
             className="px-4 py-1.5 rounded-lg bg-[#212529] hover:bg-black text-white text-xs font-semibold transition-colors cursor-pointer"
