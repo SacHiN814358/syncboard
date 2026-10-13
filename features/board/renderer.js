@@ -245,31 +245,50 @@ export function drawSticky(ctx, el) {
  * @param {{x: number, y: number, width: number, height: number}} bounds
  */
 export function drawSelectionBox(ctx, bounds) {
+  if (!bounds) return
   const pad = 4
+  const bx = bounds.x - pad
+  const by = bounds.y - pad
+  const bw = bounds.width + pad * 2
+  const bh = bounds.height + pad * 2
+
+  ctx.save()
   ctx.strokeStyle = '#1971c2'
   ctx.lineWidth = 1.5
   ctx.setLineDash([])
-  ctx.strokeRect(
-    bounds.x - pad,
-    bounds.y - pad,
-    bounds.width + pad * 2,
-    bounds.height + pad * 2
-  )
+  ctx.strokeRect(bx, by, bw, bh)
 
-  // Corner handles
-  const handleSize = 6
-  ctx.fillStyle = '#ffffff'
-  const corners = [
-    [bounds.x - pad, bounds.y - pad],
-    [bounds.x + bounds.width + pad, bounds.y - pad],
-    [bounds.x - pad, bounds.y + bounds.height + pad],
-    [bounds.x + bounds.width + pad, bounds.y + bounds.height + pad],
+  // 8 Resize handles (4 corners + 4 edge centers)
+  const handleSize = 8
+  const half = handleSize / 2
+  const r = 2
+
+  const handles = [
+    [bx, by],
+    [bx + bw, by],
+    [bx + bw, by + bh],
+    [bx, by + bh],
+    [bx + bw / 2, by],
+    [bx + bw / 2, by + bh],
+    [bx, by + bh / 2],
+    [bx + bw, by + bh / 2],
   ]
 
-  for (const [cx, cy] of corners) {
-    ctx.fillRect(cx - handleSize / 2, cy - handleSize / 2, handleSize, handleSize)
-    ctx.strokeRect(cx - handleSize / 2, cy - handleSize / 2, handleSize, handleSize)
+  ctx.fillStyle = '#ffffff'
+  ctx.strokeStyle = '#1971c2'
+  ctx.lineWidth = 1.5
+
+  for (const [hx, hy] of handles) {
+    ctx.beginPath()
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(hx - half, hy - half, handleSize, handleSize, r)
+    } else {
+      ctx.rect(hx - half, hy - half, handleSize, handleSize)
+    }
+    ctx.fill()
+    ctx.stroke()
   }
+  ctx.restore()
 }
 
 export function drawDiamond(ctx, el) {

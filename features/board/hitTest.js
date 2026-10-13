@@ -211,3 +211,64 @@ function distanceToSegment(px, py, x1, y1, x2, y2) {
 
   return distanceBetween(px, py, projX, projY)
 }
+
+/**
+ * Check if a world-space point is on a resize handle of the given bounds.
+ * @param {number} wx
+ * @param {number} wy
+ * @param {{ x: number, y: number, width: number, height: number }} bounds
+ * @param {number} tolerance
+ * @returns {'nw' | 'ne' | 'se' | 'sw' | 'n' | 's' | 'e' | 'w' | null}
+ */
+export function getResizeHandleAtPoint(wx, wy, bounds, tolerance = 10) {
+  if (!bounds) return null
+
+  const pad = 4
+  const bx = bounds.x - pad
+  const by = bounds.y - pad
+  const bw = bounds.width + pad * 2
+  const bh = bounds.height + pad * 2
+
+  const handles = [
+    { name: 'nw', x: bx, y: by },
+    { name: 'ne', x: bx + bw, y: by },
+    { name: 'se', x: bx + bw, y: by + bh },
+    { name: 'sw', x: bx, y: by + bh },
+    { name: 'n', x: bx + bw / 2, y: by },
+    { name: 's', x: bx + bw / 2, y: by + bh },
+    { name: 'w', x: bx, y: by + bh / 2 },
+    { name: 'e', x: bx + bw, y: by + bh / 2 },
+  ]
+
+  for (const h of handles) {
+    if (distanceBetween(wx, wy, h.x, h.y) <= tolerance) {
+      return h.name
+    }
+  }
+
+  return null
+}
+
+/**
+ * Get CSS cursor string for a resize handle.
+ * @param {'nw' | 'ne' | 'se' | 'sw' | 'n' | 's' | 'e' | 'w'} handle
+ * @returns {string}
+ */
+export function getCursorForHandle(handle) {
+  switch (handle) {
+    case 'nw':
+    case 'se':
+      return 'nwse-resize'
+    case 'ne':
+    case 'sw':
+      return 'nesw-resize'
+    case 'n':
+    case 's':
+      return 'ns-resize'
+    case 'e':
+    case 'w':
+      return 'ew-resize'
+    default:
+      return 'default'
+  }
+}

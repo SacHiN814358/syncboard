@@ -14,7 +14,13 @@ import {
   drawElement,
   drawSelectionBox,
 } from './renderer'
-import { findElementAtPoint, getElementBounds } from './hitTest'
+import {
+  findElementAtPoint,
+  getElementBounds,
+  hitTestElement,
+  getResizeHandleAtPoint,
+  getCursorForHandle,
+} from './hitTest'
 import { BOX_SHAPES, LINE_SHAPES } from './elements'
 
 /**
@@ -61,11 +67,15 @@ export default function Canvas({
 
   // Interaction State (Mutable to prevent React re-render lag during 60 FPS drawing)
   const isInteractingRef = useRef(false)
-  const interactionModeRef = useRef('none') // 'draw' | 'pan' | 'drag-element' | 'erase'
+  const interactionModeRef = useRef('none') // 'draw' | 'pan' | 'drag-element' | 'resize-element' | 'erase'
   const pointerStartRef = useRef({ x: 0, y: 0, worldX: 0, worldY: 0 })
   const lastPanPosRef = useRef({ x: 0, y: 0 })
   const transientElementRef = useRef(null)
   const dragOffsetRef = useRef({ x: 0, y: 0 })
+  const resizeHandleRef = useRef(null)
+  const resizeStartRef = useRef(null)
+  const lastClickTimeRef = useRef(0)
+  const lastClickedElementIdRef = useRef(null)
   const isSpacePressedRef = useRef(false)
 
   // Inline text editing state
@@ -226,16 +236,74 @@ export default function Canvas({
       return
     }
 
-    // Select Tool: check hit test
+    // 1. Check if clicking on a resize handle of the currently selected element
+    if (selectedElement) {
+      const bounds = getElementBounds(selectedElement)
+      if (bounds) {
+        const handle = getResizeHandleAtPoint(world.x, world.y, bounds, 14 / viewport.zoom)
+        if (handle) {
+          interactionModeRef.current = 'resize-element'
+          resizeHandleRef.current = handle
+          resizeStartRef.current = {
+            handle,
+            startWorldX: world.x,
+            startWorldY: world.y,
+            initialElement: { ...selectedElement },
+            initialBounds: { ...bounds },
+          }
+          if (canvasRef.current) canvasRef.current.style.cursor = getCursorForHandle(handle)
+          needsRepaintRef.current = true
+          return
+        }
+      }
+    }
+
+    // 2. Double-Click detection on any element across ALL tools (double click to move/drag)
+    const now = Date.now()
+    const hitUnderPointer = findElementAtPoint(world.x, world.y, elements, 10 / viewport.zoom)
+    const isDouble =
+      now - lastClickTimeRef.current < 400 &&
+      hitUnderPointer &&
+      hitUnderPointer.id === lastClickedElementIdRef.current
+
+    lastClickTimeRef.current = now
+    lastClickedElementIdRef.current = hitUnderPointer ? hitUnderPointer.id : null
+
+    if (isDouble && hitUnderPointer) {
+      onSelectElement(hitUnderPointer)
+      onSelectTool?.('select')
+      interactionModeRef.current = 'drag-element'
+      dragOffsetRef.current = {
+        x: world.x - (hitUnderPointer.x ?? hitUnderPointer.x1 ?? 0),
+        y: world.y - (hitUnderPointer.y ?? hitUnderPointer.y1 ?? 0),
+      }
+      if (canvasRef.current) canvasRef.current.style.cursor = 'move'
+      needsRepaintRef.current = true
+      return
+    }
+
+    // 3. If element is already selected and user clicks directly on it, drag to move
+    if (selectedElement && hitUnderPointer && hitUnderPointer.id === selectedElement.id) {
+      interactionModeRef.current = 'drag-element'
+      dragOffsetRef.current = {
+        x: world.x - (selectedElement.x ?? selectedElement.x1 ?? 0),
+        y: world.y - (selectedElement.y ?? selectedElement.y1 ?? 0),
+      }
+      if (canvasRef.current) canvasRef.current.style.cursor = 'move'
+      needsRepaintRef.current = true
+      return
+    }
+
+    // 4. Select Tool: check hit test
     if (activeTool === 'select') {
-      const hit = findElementAtPoint(world.x, world.y, elements, 10 / viewport.zoom)
-      if (hit) {
-        onSelectElement(hit)
+      if (hitUnderPointer) {
+        onSelectElement(hitUnderPointer)
         interactionModeRef.current = 'drag-element'
         dragOffsetRef.current = {
-          x: world.x - (hit.x || hit.x1 || 0),
-          y: world.y - (hit.y || hit.y1 || 0),
+          x: world.x - (hitUnderPointer.x ?? hitUnderPointer.x1 ?? 0),
+          y: world.y - (hitUnderPointer.y ?? hitUnderPointer.y1 ?? 0),
         }
+        if (canvasRef.current) canvasRef.current.style.cursor = 'move'
       } else {
         onSelectElement(null)
         interactionModeRef.current = 'none'
@@ -367,7 +435,38 @@ export default function Canvas({
     // Broadcast cursor position for remote peers
     onCursorMove?.(world.x, world.y)
 
-    if (!isInteractingRef.current) return
+    // Hover cursor feedback when not dragging
+    if (!isInteractingRef.current) {
+      if (selectedElement && canvasRef.current) {
+        const bounds = getElementBounds(selectedElement)
+        if (bounds) {
+          const handle = getResizeHandleAtPoint(world.x, world.y, bounds, 12 / viewport.zoom)
+          if (handle) {
+            canvasRef.current.style.cursor = getCursorForHandle(handle)
+            return
+          }
+          if (hitTestElement(world.x, world.y, selectedElement, 8 / viewport.zoom)) {
+            canvasRef.current.style.cursor = 'move'
+            return
+          }
+        }
+      }
+      if (canvasRef.current) {
+        canvasRef.current.style.cursor =
+          isSpacePressedRef.current || activeTool === 'pan'
+            ? 'grab'
+            : activeTool === 'select'
+            ? 'default'
+            : activeTool === 'bucket'
+            ? 'pointer'
+            : activeTool === 'text'
+            ? 'text'
+            : activeTool === 'eraser'
+            ? 'cell'
+            : 'crosshair'
+      }
+      return
+    }
 
     // Pan Mode
     if (interactionModeRef.current === 'pan') {
@@ -380,6 +479,84 @@ export default function Canvas({
         panX: viewport.panX + dx,
         panY: viewport.panY + dy,
       })
+      needsRepaintRef.current = true
+      return
+    }
+
+    // Resize Selected Element Mode (Grabbing any of the 8 handles)
+    if (
+      interactionModeRef.current === 'resize-element' &&
+      resizeStartRef.current &&
+      selectedElement
+    ) {
+      const { handle, startWorldX, startWorldY, initialElement, initialBounds } =
+        resizeStartRef.current
+      const dx = world.x - startWorldX
+      const dy = world.y - startWorldY
+
+      let newX = initialBounds.x
+      let newY = initialBounds.y
+      let newW = initialBounds.width
+      let newH = initialBounds.height
+
+      if (handle.includes('e')) {
+        newW = Math.max(10, initialBounds.width + dx)
+      }
+      if (handle.includes('s')) {
+        newH = Math.max(10, initialBounds.height + dy)
+      }
+      if (handle.includes('w')) {
+        const targetW = initialBounds.width - dx
+        if (targetW >= 10) {
+          newX = initialBounds.x + dx
+          newW = targetW
+        }
+      }
+      if (handle.includes('n')) {
+        const targetH = initialBounds.height - dy
+        if (targetH >= 10) {
+          newY = initialBounds.y + dy
+          newH = targetH
+        }
+      }
+
+      let updatedEl = { ...initialElement }
+
+      if (BOX_SHAPES.includes(initialElement.type) || initialElement.type === 'sticky') {
+        updatedEl = {
+          ...initialElement,
+          x: newX,
+          y: newY,
+          width: newW,
+          height: newH,
+        }
+      } else if (initialElement.type === 'circle') {
+        updatedEl = {
+          ...initialElement,
+          x: newX + newW / 2,
+          y: newY + newH / 2,
+          radiusX: newW / 2,
+          radiusY: newH / 2,
+        }
+      } else if (LINE_SHAPES.includes(initialElement.type)) {
+        updatedEl = {
+          ...initialElement,
+          x1: initialElement.x1 <= initialElement.x2 ? newX : newX + newW,
+          y1: initialElement.y1 <= initialElement.y2 ? newY : newY + newH,
+          x2: initialElement.x1 <= initialElement.x2 ? newX + newW : newX,
+          y2: initialElement.y1 <= initialElement.y2 ? newY + newH : newY,
+        }
+      } else if (initialElement.type === 'text') {
+        updatedEl = {
+          ...initialElement,
+          x: newX,
+          y: newY,
+        }
+      }
+
+      const updated = elements.map((el) => (el.id === selectedElement.id ? updatedEl : el))
+      onElementsChange(updated)
+      onSelectElement(updatedEl)
       needsRepaintRef.current = true
       return
     }
@@ -463,6 +640,14 @@ export default function Canvas({
     if (!isInteractingRef.current) return
     isInteractingRef.current = false
 
+    if (interactionModeRef.current === 'resize-element') {
+      interactionModeRef.current = 'none'
+      resizeHandleRef.current = null
+      resizeStartRef.current = null
+      needsRepaintRef.current = true
+      return
+    }
+
     if (canvasRef.current) {
       canvasRef.current.style.cursor =
         isSpacePressedRef.current || activeTool === 'pan'
@@ -508,22 +693,28 @@ export default function Canvas({
     }
   }
 
-  // 8. Double Click to edit existing Text or Sticky Note
+  // 8. Double Click to edit Text/Sticky or select Shape to move
   const handleDoubleClick = (e) => {
     const rect = canvasRef.current.getBoundingClientRect()
     const screenX = e.clientX - rect.left
     const screenY = e.clientY - rect.top
     const world = screenToWorld(screenX, screenY, viewport)
 
-    const hit = findElementAtPoint(world.x, world.y, elements, 8 / viewport.zoom)
-    if (hit && (hit.type === 'text' || hit.type === 'sticky')) {
-      setEditingText({
-        id: hit.id,
-        x: hit.x,
-        y: hit.y,
-        text: hit.text || '',
-        type: hit.type,
-      })
+    const hit = findElementAtPoint(world.x, world.y, elements, 10 / viewport.zoom)
+    if (hit) {
+      onSelectElement(hit)
+      onSelectTool?.('select')
+
+      if (hit.type === 'text' || hit.type === 'sticky') {
+        setEditingText({
+          id: hit.id,
+          x: hit.x,
+          y: hit.y,
+          text: hit.text || '',
+          type: hit.type,
+        })
+      }
+      needsRepaintRef.current = true
     }
   }
 
