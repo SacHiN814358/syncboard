@@ -5,7 +5,8 @@ import BoardWorkspace from '@/features/board/BoardWorkspace'
 
 export default function BoardPage({ params }) {
   const resolvedParams = use(params)
-  const roomId = resolvedParams?.id || 'demo-room'
+  const rawId = resolvedParams?.id || 'DEMO-ROOM'
+  const roomId = decodeURIComponent(rawId).trim().toUpperCase()
 
   return <BoardWorkspace roomId={roomId} />
 }

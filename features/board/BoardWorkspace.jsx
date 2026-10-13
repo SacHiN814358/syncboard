@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Toaster, toast } from 'react-hot-toast'
 import { createHistory } from './history'
 import { DEFAULT_VIEWPORT } from './elements'
+import { generateRoomCode } from '@/lib/utils'
 import { useCollaboration } from '@/features/collaboration/useCollaboration'
 import { useBoardStorage } from '@/features/persistence/useBoardStorage'
 import TopNav from '@/components/TopNav'
@@ -12,6 +14,8 @@ import PropertiesPanel from '@/components/PropertiesPanel'
 import RemoteCursors from '@/components/RemoteCursors'
 import ExportModal from '@/components/ExportModal'
 import SqlHelpModal from '@/components/SqlHelpModal'
+import InviteModal from '@/components/InviteModal'
+import JoinCodeModal from '@/components/JoinCodeModal'
 import Canvas from './Canvas'
 
 /**
@@ -51,9 +55,13 @@ export default function BoardWorkspace({ roomId }) {
   const [currentStickyColor, setCurrentStickyColor] = useState('#fff3bf')
   const [currentFontSize, setCurrentFontSize] = useState(18)
 
+  const router = useRouter()
+
   // 5. Modals State
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [sqlModalOpen, setSqlModalOpen] = useState(false)
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
+  const [joinCodeModalOpen, setJoinCodeModalOpen] = useState(false)
 
   // 6. Multi-User Live Drawing Previews State
   const [remotePreviews, setRemotePreviews] = useState({})
@@ -93,6 +101,48 @@ export default function BoardWorkspace({ roomId }) {
       }
     })
   }, [loadBoard])
+
+  // Track peer joins to display cheerful notification
+  const prevPeersRef = useRef([])
+  useEffect(() => {
+    const prev = prevPeersRef.current
+    if (collaborators.length > prev.length) {
+      const newPeer = collaborators.find((c) => !prev.some((p) => p.id === c.id))
+      if (newPeer) {
+        toast.success(`${newPeer.name || 'Collaborator'} joined the workspace! 👋`, {
+          icon: '🎨',
+          duration: 3500,
+        })
+      }
+    }
+    prevPeersRef.current = collaborators
+  }, [collaborators])
+
+  // Save current room to recent boards list in localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && roomId) {
+      try {
+        const recent = JSON.parse(localStorage.getItem('syncboard_recent_boards') || '[]')
+        const filtered = recent.filter((b) => b.id !== roomId)
+        const updated = [
+          {
+            id: roomId,
+            title: boardTitle || 'Untitled Board',
+            lastVisited: Date.now(),
+          },
+          ...filtered,
+        ].slice(0, 10)
+        localStorage.setItem('syncboard_recent_boards', JSON.stringify(updated))
+      } catch (_) {}
+    }
+  }, [roomId, boardTitle])
+
+  // Create brand new board with a fresh 6-digit room code
+  const handleNewBoard = useCallback(() => {
+    const newCode = generateRoomCode()
+    toast.success(`Creating new board ${newCode}...`)
+    router.push(`/board/${newCode}`)
+  }, [router])
 
   // Commit element changes (Pushes to History + Saves to DB + Broadcasts to Peers)
   const handleElementsChange = useCallback(
@@ -246,6 +296,7 @@ export default function BoardWorkspace({ roomId }) {
 
       {/* 1. Top Navigation */}
       <TopNav
+        roomId={roomId}
         boardTitle={boardTitle}
         onTitleChange={(newTitle) => {
           setBoardTitle(newTitle)
@@ -264,6 +315,9 @@ export default function BoardWorkspace({ roomId }) {
         currentUser={currentUser}
         onOpenExport={() => setExportModalOpen(true)}
         onOpenSqlModal={() => setSqlModalOpen(true)}
+        onOpenInvite={() => setInviteModalOpen(true)}
+        onOpenJoinCode={() => setJoinCodeModalOpen(true)}
+        onNewBoard={handleNewBoard}
       />
 
       {/* 2. Paint-Style Ribbon Toolbar */}
@@ -398,6 +452,20 @@ export default function BoardWorkspace({ roomId }) {
       <SqlHelpModal
         isOpen={sqlModalOpen}
         onClose={() => setSqlModalOpen(false)}
+      />
+
+      <InviteModal
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+        roomId={roomId}
+        boardTitle={boardTitle}
+        collaborators={collaborators}
+        currentUser={currentUser}
+      />
+
+      <JoinCodeModal
+        isOpen={joinCodeModalOpen}
+        onClose={() => setJoinCodeModalOpen(false)}
       />
     </div>
   )
