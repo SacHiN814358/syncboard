@@ -109,6 +109,7 @@ export function useCollaboration(
   const [isConnected, setIsConnected] = useState(false)
   const [isKicked, setIsKicked] = useState(false)
   const lastCursorSendRef = useRef(0)
+  const lastPreviewSendRef = useRef(0)
 
   // Clean room code
   const cleanRoom = (roomId || 'DEFAULT').toUpperCase().trim()
@@ -252,6 +253,7 @@ export function useCollaboration(
           case 'elements': {
             if (payload.senderId === currentUser.id) return
             if (Array.isArray(payload.elements)) {
+              onRemoteDrawPreviewRef.current?.({ userId: payload.senderId, element: null })
               onRemoteElementsChangeRef.current?.(payload.elements)
             }
             break
@@ -372,16 +374,37 @@ export function useCollaboration(
   )
 
   /**
-   * Broadcast temporary stroke preview in real time.
+   * Broadcast temporary stroke preview in real time (throttled for streaming, immediate for clear).
    */
   const broadcastDrawPreview = useCallback(
     (element) => {
       if (!clientRef.current?.connected) return
+      const now = Date.now()
+
+      // If clearing preview, send immediately without throttle
+      if (!element) {
+        lastPreviewSendRef.current = 0
+        clientRef.current.publish(
+          `syncboard/v2/room/${cleanRoom}/draw_preview`,
+          JSON.stringify({
+            userId: currentUser.id,
+            element: null,
+            timestamp: now,
+          })
+        )
+        return
+      }
+
+      // Throttle preview streaming to ~28ms (~35 FPS) to keep WebSocket buffer ultra-clean
+      if (now - lastPreviewSendRef.current < 28) return
+      lastPreviewSendRef.current = now
+
       clientRef.current.publish(
         `syncboard/v2/room/${cleanRoom}/draw_preview`,
         JSON.stringify({
           userId: currentUser.id,
           element,
+          timestamp: now,
         })
       )
     },

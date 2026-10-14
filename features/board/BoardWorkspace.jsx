@@ -124,7 +124,6 @@ export default function BoardWorkspace({ roomId }) {
       setElements(remoteElements)
       historyRef.current.push(remoteElements)
       saveBoard(remoteElements)
-      toast.success('Board synchronized with collaborators ⚡', { id: 'peer-update', duration: 1500 })
     },
     onRemoteTitleChange: (newTitle) => {
       setBoardTitle(newTitle)

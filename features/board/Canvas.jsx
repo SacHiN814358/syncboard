@@ -92,6 +92,34 @@ export default function Canvas({
   const activeSnapAnchorRef = useRef(null) // { elementId, anchor, x, y }
   const visibleAnchorsRef = useRef([]) // Array of anchor coordinates for visible snap points
 
+  // Synchronized prop refs for zero-teardown 60 FPS rendering
+  const elementsRef = useRef(elements)
+  const remotePreviewsRef = useRef(remotePreviews)
+  const viewportRef = useRef(viewport)
+  const selectedElementRef = useRef(selectedElement)
+  const lastPreviewTimeRef = useRef(0)
+  const dragUpdatedElementsRef = useRef(null)
+
+  useEffect(() => {
+    elementsRef.current = elements
+    needsRepaintRef.current = true
+  }, [elements])
+
+  useEffect(() => {
+    remotePreviewsRef.current = remotePreviews
+    needsRepaintRef.current = true
+  }, [remotePreviews])
+
+  useEffect(() => {
+    viewportRef.current = viewport
+    needsRepaintRef.current = true
+  }, [viewport])
+
+  useEffect(() => {
+    selectedElementRef.current = selectedElement
+    needsRepaintRef.current = true
+  }, [selectedElement])
+
   // Process & insert image onto board
   const handleProcessAndInsertImage = useCallback(
     async (file, targetWorldX, targetWorldY) => {
@@ -129,7 +157,8 @@ export default function Canvas({
           aspectRatio,
         }
 
-        onElementsChange([...elements, newImage])
+        const latest = elementsRef.current || elements
+        onElementsChange([...latest, newImage])
         onSelectElement(newImage)
         onSelectTool?.('select')
         needsRepaintRef.current = true
@@ -140,7 +169,7 @@ export default function Canvas({
     [elements, viewport, onElementsChange, onSelectElement, onSelectTool]
   )
 
-  // 1. requestAnimationFrame Render Loop
+  // 1. Stable, non-tearing 60 FPS Render Loop
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -167,14 +196,17 @@ export default function Canvas({
         ctx.fillStyle = '#ffffff'
         ctx.fillRect(0, 0, width, height)
 
+        const currentVp = viewportRef.current || { panX: 0, panY: 0, zoom: 1 }
+
         // Apply viewport transform with DPR (Ensures 100% 1:1 pixel accuracy under mouse pointer!)
-        applyViewportTransform(ctx, viewport, dpr)
+        applyViewportTransform(ctx, currentVp, dpr)
 
         // Draw Dot Grid in world space
-        drawGrid(ctx, width, height, viewport)
+        drawGrid(ctx, width, height, currentVp)
 
         // Draw all committed elements
-        for (const el of elements) {
+        const currentElements = dragUpdatedElementsRef.current || elementsRef.current || []
+        for (const el of currentElements) {
           drawElement(ctx, el)
         }
 
@@ -184,15 +216,15 @@ export default function Canvas({
         }
 
         // Draw remote collaborators' transient previews (multi-user live painting!)
-        if (remotePreviews) {
-          for (const preview of Object.values(remotePreviews)) {
+        if (remotePreviewsRef.current) {
+          for (const preview of Object.values(remotePreviewsRef.current)) {
             if (preview) drawElement(ctx, preview)
           }
         }
 
         // Draw selection box & handles
-        if (selectedElement) {
-          const bounds = getElementBounds(selectedElement)
+        if (selectedElementRef.current) {
+          const bounds = getElementBounds(selectedElementRef.current)
           if (bounds) {
             drawSelectionBox(ctx, bounds)
           }
@@ -214,12 +246,7 @@ export default function Canvas({
     return () => {
       cancelAnimationFrame(animationFrameId)
     }
-  }, [elements, viewport, selectedElement, remotePreviews])
-
-  // Trigger repaint whenever elements, viewport, or selection changes
-  useEffect(() => {
-    needsRepaintRef.current = true
-  }, [elements, viewport, selectedElement, remotePreviews])
+  }, [])
 
   // 2. Window Resize Handler
   useEffect(() => {
@@ -713,7 +740,7 @@ export default function Canvas({
         }
       }
 
-      onElementsChange(updated)
+      dragUpdatedElementsRef.current = updated
       onSelectElement(updatedEl)
       needsRepaintRef.current = true
       return
@@ -726,7 +753,8 @@ export default function Canvas({
 
       let movedEl = null
 
-      const updated = elements.map((el) => {
+      const currentElements = dragUpdatedElementsRef.current || elementsRef.current || elements
+      const updated = currentElements.map((el) => {
         if (el.id !== selectedElement.id) return el
 
         if (el.type === 'pen') {
@@ -791,7 +819,7 @@ export default function Canvas({
         }
       }
 
-      onElementsChange(updated)
+      dragUpdatedElementsRef.current = updated
       onSelectElement(updated.find((el) => el.id === selectedElement.id) || null)
       needsRepaintRef.current = true
       return
@@ -809,7 +837,12 @@ export default function Canvas({
       const startW = pointerStartRef.current
 
       if (current.type === 'pen' || current.type === 'brush') {
-        current.points.push({ x: world.x, y: world.y })
+        const roundedX = Math.round(world.x * 10) / 10
+        const roundedY = Math.round(world.y * 10) / 10
+        const lastPt = current.points[current.points.length - 1]
+        if (!lastPt || Math.hypot(roundedX - lastPt.x, roundedY - lastPt.y) >= 1.5) {
+          current.points.push({ x: roundedX, y: roundedY })
+        }
       } else if (BOX_SHAPES.includes(current.type)) {
         current.x = Math.min(startW.worldX, world.x)
         current.y = Math.min(startW.worldY, world.y)
@@ -842,24 +875,26 @@ export default function Canvas({
         }
       }
 
-      // Broadcast transient drawing preview to collaborators
-      onDrawPreview?.(current)
+      // Broadcast transient drawing preview to collaborators (throttled to ~32ms / 30 FPS)
+      const now = Date.now()
+      if (now - lastPreviewTimeRef.current >= 32) {
+        lastPreviewTimeRef.current = now
+        onDrawPreview?.(current)
+      }
       needsRepaintRef.current = true
     }
   }
 
   // 7. Pointer Up
-  const handlePointerUp = () => {
+  const handlePointerUp = (e) => {
+    try {
+      if (e?.target && e?.pointerId != null) {
+        e.target.releasePointerCapture(e.pointerId)
+      }
+    } catch (_) {}
+
     if (!isInteractingRef.current) return
     isInteractingRef.current = false
-
-    if (interactionModeRef.current === 'resize-element') {
-      interactionModeRef.current = 'none'
-      resizeHandleRef.current = null
-      resizeStartRef.current = null
-      needsRepaintRef.current = true
-      return
-    }
 
     if (canvasRef.current) {
       canvasRef.current.style.cursor =
@@ -872,11 +907,26 @@ export default function Canvas({
           : 'crosshair'
     }
 
+    // Commit any dragged or resized element changes cleanly ONCE on mouse release
+    if (dragUpdatedElementsRef.current) {
+      onElementsChange(dragUpdatedElementsRef.current)
+      dragUpdatedElementsRef.current = null
+    }
+
+    if (interactionModeRef.current === 'resize-element') {
+      interactionModeRef.current = 'none'
+      resizeHandleRef.current = null
+      resizeStartRef.current = null
+      needsRepaintRef.current = true
+      return
+    }
+
     // Commit transient element
     if (interactionModeRef.current === 'draw' && transientElementRef.current) {
       const el = transientElementRef.current
       transientElementRef.current = null
-      onDrawPreview?.(null) // clear transient preview
+      lastPreviewTimeRef.current = 0
+      onDrawPreview?.(null) // clear transient preview immediately
 
       // Filter out accidental clicks (0 width/height)
       let isValid = true
@@ -886,7 +936,8 @@ export default function Canvas({
       if ((el.type === 'pen' || el.type === 'brush') && el.points.length < 2) isValid = false
 
       if (isValid) {
-        onElementsChange([...elements, el])
+        const latest = elementsRef.current || elements
+        onElementsChange([...latest, el])
         onSelectElement(el)
       }
     }
