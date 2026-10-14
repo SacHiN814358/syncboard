@@ -58,7 +58,11 @@ export default function HomePage() {
     }
 
     toast.loading(`Joining board ${clean}...`, { id: 'join-toast' })
-    router.push(`/board/${clean}`)
+    if (typeof window !== 'undefined') {
+      window.location.href = `/board/${clean}`
+    } else {
+      router.push(`/board/${clean}`)
+    }
   }
 
   // 3. Remove a board from recent list
@@ -93,7 +97,7 @@ export default function HomePage() {
         </div>
 
         <div className="flex items-center gap-3 text-xs text-[#495057]">
-          <span className="hidden sm:inline text-[#868e96]">Multiplayer Powered by Supabase</span>
+          <span className="hidden sm:inline text-[#868e96]">Instant Real-time Multiplayer</span>
           <a
             href="https://github.com/SacHiN814358/syncboard"
             target="_blank"

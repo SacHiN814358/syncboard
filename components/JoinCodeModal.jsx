@@ -33,7 +33,11 @@ export default function JoinCodeModal({ isOpen, onClose }) {
 
     toast.loading(`Joining room ${cleanCode}...`, { id: 'joining-room' })
     onClose()
-    router.push(`/board/${cleanCode}`)
+    if (typeof window !== 'undefined') {
+      window.location.href = `/board/${cleanCode}`
+    } else {
+      router.push(`/board/${cleanCode}`)
+    }
   }
 
   return (

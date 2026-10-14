@@ -117,10 +117,16 @@ export default function BoardWorkspace({ roomId }) {
     kickCollaborator,
   } = useCollaboration(roomId, {
     isHost,
+    currentElements: elements,
+    boardTitle: boardTitle,
     onRemoteElementsChange: (remoteElements) => {
       setElements(remoteElements)
       historyRef.current.push(remoteElements)
-      toast.success('Board updated by collaborator ⚡', { id: 'peer-update', duration: 1500 })
+      saveBoard(remoteElements)
+      toast.success('Board synchronized with collaborators ⚡', { id: 'peer-update', duration: 1500 })
+    },
+    onRemoteTitleChange: (newTitle) => {
+      setBoardTitle(newTitle)
     },
     onRemoteDrawPreview: (previewData) => {
       setRemotePreviews((prev) => {

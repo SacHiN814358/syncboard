@@ -1,39 +1,61 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { COLLABORATOR_COLORS } from '@/features/board/elements'
+import { createMqttConnection } from '@/lib/realtime/mqttClient'
 
 /**
- * Hook for Supabase Realtime multiplayer collaboration.
- *
- * Channels:
- * 1. Presence: Announces this user, tracks who is in the room.
- * 2. Broadcast: Low-latency pointer/cursor positions and temporary drawing previews.
- * 3. Element Sync: Broadcasts finalized element additions, updates, deletions.
+ * High-performance multiplayer collaboration engine powered by resilient WebSockets.
+ * Enables instant cross-laptop synchronization with zero server setup.
  *
  * @param {string} roomId
  * @param {{
  *   onRemoteElementsChange?: (elements: any[]) => void,
+ *   onRemoteTitleChange?: (title: string) => void,
  *   onRemoteDrawPreview?: (drawData: any) => void,
- * }} callbacks
+ *   onReaction?: (reaction: any) => void,
+ *   onPresenterUpdate?: (presenterData: any) => void,
+ *   onChatMessage?: (chatData: any) => void,
+ *   isHost?: boolean,
+ *   currentElements?: any[],
+ *   boardTitle?: string,
+ * }} options
  */
 export function useCollaboration(
   roomId,
   {
     onRemoteElementsChange,
+    onRemoteTitleChange,
     onRemoteDrawPreview,
     onReaction,
     onPresenterUpdate,
     onChatMessage,
     isHost = false,
+    currentElements = [],
+    boardTitle = '',
   } = {}
 ) {
-  const supabase = createClient()
-  const channelRef = useRef(null)
+  const clientRef = useRef(null)
+  const onRemoteElementsChangeRef = useRef(onRemoteElementsChange)
+  const onRemoteTitleChangeRef = useRef(onRemoteTitleChange)
+  const onRemoteDrawPreviewRef = useRef(onRemoteDrawPreview)
   const onReactionRef = useRef(onReaction)
   const onPresenterUpdateRef = useRef(onPresenterUpdate)
   const onChatMessageRef = useRef(onChatMessage)
+  const currentElementsRef = useRef(currentElements)
+  const boardTitleRef = useRef(boardTitle)
+
+  useEffect(() => {
+    onRemoteElementsChangeRef.current = onRemoteElementsChange
+  }, [onRemoteElementsChange])
+
+  useEffect(() => {
+    onRemoteTitleChangeRef.current = onRemoteTitleChange
+  }, [onRemoteTitleChange])
+
+  useEffect(() => {
+    onRemoteDrawPreviewRef.current = onRemoteDrawPreview
+  }, [onRemoteDrawPreview])
 
   useEffect(() => {
     onReactionRef.current = onReaction
@@ -47,15 +69,23 @@ export function useCollaboration(
     onChatMessageRef.current = onChatMessage
   }, [onChatMessage])
 
-  // Stable local identity (starts with deterministic SSR default to avoid hydration mismatch)
+  useEffect(() => {
+    currentElementsRef.current = currentElements
+  }, [currentElements])
+
+  useEffect(() => {
+    boardTitleRef.current = boardTitle
+  }, [boardTitle])
+
+  // Stable local user identity
   const [currentUser, setCurrentUser] = useState({
     id: 'usr-default',
     name: 'You',
     color: '#1971c2',
   })
 
-  // Populate or generate persistent user identity on client mount only
   useEffect(() => {
+    if (typeof window === 'undefined') return
     const saved = sessionStorage.getItem('syncboard_user')
     if (saved) {
       try {
@@ -80,126 +110,213 @@ export function useCollaboration(
   const [isKicked, setIsKicked] = useState(false)
   const lastCursorSendRef = useRef(0)
 
+  // Clean room code
+  const cleanRoom = (roomId || 'DEFAULT').toUpperCase().trim()
+
   useEffect(() => {
-    if (!supabase || !roomId) return
+    if (!cleanRoom || typeof window === 'undefined') return
 
-    const channelName = `syncboard:room:${roomId}`
-    const channel = supabase.channel(channelName, {
-      config: {
-        presence: { key: currentUser.id },
-        broadcast: { ack: false },
-      },
-    })
-    channelRef.current = channel
+    const topicBase = `syncboard/v2/room/${cleanRoom}`
+    const client = createMqttConnection(currentUser.id, cleanRoom)
+    clientRef.current = client
 
-    // 1. Presence state sync (Who is online?)
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState()
-        const peers = []
-        for (const key in state) {
-          const presences = state[key]
-          if (presences && presences.length > 0) {
-            const p = presences[0]
-            if (p.id !== currentUser.id) {
-              peers.push(p)
-            }
+    // Subscribe to all room channels
+    client.on('connect', () => {
+      setIsConnected(true)
+      const wildcardTopic = `${topicBase}/#`
+      client.subscribe(wildcardTopic, { qos: 0 }, (err) => {
+        if (!err) {
+          // Announce presence
+          const joinPayload = {
+            type: 'join',
+            user: {
+              id: currentUser.id,
+              name: currentUser.name,
+              color: currentUser.color,
+              isHost: Boolean(isHost),
+              joinedAt: new Date().toISOString(),
+            },
+            timestamp: Date.now(),
           }
+          client.publish(`${topicBase}/presence`, JSON.stringify(joinPayload))
+
+          // Request latest board state from any online collaborator
+          client.publish(
+            `${topicBase}/sync_request`,
+            JSON.stringify({ requesterId: currentUser.id })
+          )
         }
-        setCollaborators(peers)
       })
-      .on('presence', { event: 'leave' }, ({ key }) => {
-        setRemoteCursors((prev) => {
-          const next = { ...prev }
-          delete next[key]
-          return next
-        })
-      })
-
-    // 2. Broadcast: Remote cursor movements (throttled)
-    channel.on('broadcast', { event: 'cursor_move' }, ({ payload }) => {
-      if (!payload || payload.userId === currentUser.id) return
-      setRemoteCursors((prev) => ({
-        ...prev,
-        [payload.userId]: {
-          userId: payload.userId,
-          name: payload.name,
-          color: payload.color,
-          x: payload.x,
-          y: payload.y,
-          lastSeen: Date.now(),
-        },
-      }))
     })
 
-    // 3. Broadcast: In-progress stroke preview (transient)
-    channel.on('broadcast', { event: 'draw_preview' }, ({ payload }) => {
-      if (!payload || payload.userId === currentUser.id) return
-      onRemoteDrawPreview?.(payload)
-    })
+    client.on('offline', () => setIsConnected(false))
+    client.on('reconnect', () => setIsConnected(true))
+    client.on('error', () => {})
 
-    // 4. Broadcast: Finalized elements update
-    channel.on('broadcast', { event: 'elements_update' }, ({ payload }) => {
-      if (!payload || payload.senderId === currentUser.id) return
-      onRemoteElementsChange?.(payload.elements)
-    })
+    // Handle incoming messages on all topics
+    client.on('message', (topic, rawMessage) => {
+      try {
+        const payload = JSON.parse(rawMessage.toString())
+        const subtopic = topic.replace(`${topicBase}/`, '')
 
-    // 5. Broadcast: Host removed/kicked a user
-    channel.on('broadcast', { event: 'kick_user' }, ({ payload }) => {
-      if (!payload) return
-      if (payload.targetUserId === currentUser.id) {
-        setIsKicked(true)
-        if (channelRef.current) {
-          supabase.removeChannel(channelRef.current)
-          channelRef.current = null
+        switch (subtopic) {
+          case 'presence': {
+            if (payload.userId === currentUser.id || payload.user?.id === currentUser.id) return
+            const peer = payload.user || { id: payload.userId }
+
+            if (payload.type === 'leave') {
+              setCollaborators((prev) => prev.filter((c) => c.id !== peer.id))
+              setRemoteCursors((prev) => {
+                const next = { ...prev }
+                delete next[peer.id]
+                return next
+              })
+              return
+            }
+
+            // Join or heartbeat
+            setCollaborators((prev) => {
+              const existingIndex = prev.findIndex((c) => c.id === peer.id)
+              const updatedPeer = { ...peer, lastSeen: Date.now() }
+              if (existingIndex >= 0) {
+                const next = [...prev]
+                next[existingIndex] = { ...next[existingIndex], ...updatedPeer }
+                return next
+              }
+              return [...prev, updatedPeer]
+            })
+
+            // If a new peer joined and we already have elements, answer them with state
+            if (payload.type === 'join' && currentElementsRef.current?.length > 0) {
+              client.publish(
+                `${topicBase}/sync_response`,
+                JSON.stringify({
+                  targetId: peer.id,
+                  elements: currentElementsRef.current,
+                  title: boardTitleRef.current,
+                })
+              )
+            }
+            break
+          }
+
+          case 'sync_request': {
+            if (payload.requesterId === currentUser.id) return
+            // Send current board state back to the newly joined peer
+            if (currentElementsRef.current && currentElementsRef.current.length > 0) {
+              client.publish(
+                `${topicBase}/sync_response`,
+                JSON.stringify({
+                  targetId: payload.requesterId,
+                  elements: currentElementsRef.current,
+                  title: boardTitleRef.current,
+                })
+              )
+            }
+            break
+          }
+
+          case 'sync_response': {
+            if (payload.targetId !== currentUser.id) return
+            if (Array.isArray(payload.elements) && payload.elements.length > 0) {
+              onRemoteElementsChangeRef.current?.(payload.elements)
+            }
+            if (payload.title && onRemoteTitleChangeRef.current) {
+              onRemoteTitleChangeRef.current(payload.title)
+            }
+            break
+          }
+
+          case 'cursor': {
+            if (payload.userId === currentUser.id) return
+            setRemoteCursors((prev) => ({
+              ...prev,
+              [payload.userId]: {
+                userId: payload.userId,
+                name: payload.name,
+                color: payload.color,
+                x: payload.x,
+                y: payload.y,
+                lastSeen: Date.now(),
+              },
+            }))
+            break
+          }
+
+          case 'draw_preview': {
+            if (payload.userId === currentUser.id) return
+            onRemoteDrawPreviewRef.current?.(payload)
+            break
+          }
+
+          case 'elements': {
+            if (payload.senderId === currentUser.id) return
+            if (Array.isArray(payload.elements)) {
+              onRemoteElementsChangeRef.current?.(payload.elements)
+            }
+            break
+          }
+
+          case 'reaction': {
+            onReactionRef.current?.(payload)
+            break
+          }
+
+          case 'presenter': {
+            if (payload.userId === currentUser.id) return
+            onPresenterUpdateRef.current?.(payload)
+            break
+          }
+
+          case 'chat': {
+            onChatMessageRef.current?.(payload)
+            break
+          }
+
+          case 'kick': {
+            if (payload.targetUserId === currentUser.id) {
+              setIsKicked(true)
+              try {
+                client.end(true)
+              } catch (_) {}
+            } else {
+              setCollaborators((prev) => prev.filter((p) => p.id !== payload.targetUserId))
+              setRemoteCursors((prev) => {
+                const next = { ...prev }
+                delete next[payload.targetUserId]
+                return next
+              })
+            }
+            break
+          }
+
+          default:
+            break
         }
-      } else {
-        setCollaborators((prev) => prev.filter((p) => p.id !== payload.targetUserId))
-        setRemoteCursors((prev) => {
-          const next = { ...prev }
-          delete next[payload.targetUserId]
-          return next
-        })
+      } catch (_) {}
+    })
+
+    // Heartbeat loop every 4.5s
+    const heartbeatTimer = setInterval(() => {
+      if (client.connected) {
+        client.publish(
+          `${topicBase}/presence`,
+          JSON.stringify({
+            type: 'heartbeat',
+            user: {
+              id: currentUser.id,
+              name: currentUser.name,
+              color: currentUser.color,
+              isHost: Boolean(isHost),
+            },
+            timestamp: Date.now(),
+          })
+        )
       }
-    })
 
-    // 6. Broadcast: Emoji reaction event
-    channel.on('broadcast', { event: 'emoji_reaction' }, ({ payload }) => {
-      if (!payload) return
-      onReactionRef.current?.(payload)
-    })
-
-    // 7. Broadcast: Presenter live viewport stream
-    channel.on('broadcast', { event: 'presenter_view' }, ({ payload }) => {
-      if (!payload || payload.userId === currentUser.id) return
-      onPresenterUpdateRef.current?.(payload)
-    })
-
-    // 8. Broadcast: Realtime chat message
-    channel.on('broadcast', { event: 'chat_message' }, ({ payload }) => {
-      if (!payload) return
-      onChatMessageRef.current?.(payload)
-    })
-
-    // Subscribe to channel
-    channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        setIsConnected(true)
-        await channel.track({
-          id: currentUser.id,
-          name: currentUser.name,
-          color: currentUser.color,
-          isHost: Boolean(isHost),
-          joinedAt: new Date().toISOString(),
-        })
-      } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-        setIsConnected(false)
-      }
-    })
-
-    // Stale cursor cleanup timer (prune cursors older than 10 seconds)
-    const cleanupInterval = setInterval(() => {
+      // Prune inactive peers (>12s)
       const now = Date.now()
+      setCollaborators((prev) => prev.filter((c) => now - (c.lastSeen || 0) < 14000))
       setRemoteCursors((prev) => {
         let changed = false
         const next = { ...prev }
@@ -211,115 +328,107 @@ export function useCollaboration(
         }
         return changed ? next : prev
       })
-    }, 4000)
+    }, 4500)
 
     return () => {
-      clearInterval(cleanupInterval)
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current)
-        channelRef.current = null
-      }
+      clearInterval(heartbeatTimer)
+      try {
+        if (client.connected) {
+          client.publish(
+            `${topicBase}/presence`,
+            JSON.stringify({ type: 'leave', userId: currentUser.id })
+          )
+        }
+        client.end(true)
+      } catch (_) {}
+      clientRef.current = null
       setIsConnected(false)
     }
-  }, [roomId, currentUser.id, currentUser.name, currentUser.color])
+  }, [cleanRoom, currentUser.id, currentUser.name, currentUser.color, isHost])
 
   /**
    * Broadcast pointer position in world coordinates (throttled to ~30ms).
    */
-  const broadcastCursor = useCallback((worldX, worldY) => {
-    const now = Date.now()
-    if (now - lastCursorSendRef.current < 30) return
-    lastCursorSendRef.current = now
+  const broadcastCursor = useCallback(
+    (worldX, worldY) => {
+      const now = Date.now()
+      if (now - lastCursorSendRef.current < 28) return
+      lastCursorSendRef.current = now
 
-    channelRef.current?.send({
-      type: 'broadcast',
-      event: 'cursor_move',
-      payload: {
-        userId: currentUser.id,
-        name: currentUser.name,
-        color: currentUser.color,
-        x: worldX,
-        y: worldY,
-      },
-    })
-  }, [currentUser])
+      if (!clientRef.current?.connected) return
+
+      clientRef.current.publish(
+        `syncboard/v2/room/${cleanRoom}/cursor`,
+        JSON.stringify({
+          userId: currentUser.id,
+          name: currentUser.name,
+          color: currentUser.color,
+          x: Math.round(worldX),
+          y: Math.round(worldY),
+        })
+      )
+    },
+    [cleanRoom, currentUser]
+  )
 
   /**
-   * Broadcast transient in-progress drawing stroke for smooth real-time preview.
+   * Broadcast temporary stroke preview in real time.
    */
-  const broadcastDrawPreview = useCallback((previewElement) => {
-    channelRef.current?.send({
-      type: 'broadcast',
-      event: 'draw_preview',
-      payload: {
-        userId: currentUser.id,
-        element: previewElement,
-      },
-    })
-  }, [currentUser.id])
+  const broadcastDrawPreview = useCallback(
+    (element) => {
+      if (!clientRef.current?.connected) return
+      clientRef.current.publish(
+        `syncboard/v2/room/${cleanRoom}/draw_preview`,
+        JSON.stringify({
+          userId: currentUser.id,
+          element,
+        })
+      )
+    },
+    [cleanRoom, currentUser]
+  )
 
   /**
-   * Broadcast finalized elements state to all connected peers.
+   * Broadcast finalized elements change to all peers.
    */
-  const broadcastElementsUpdate = useCallback((elements) => {
-    channelRef.current?.send({
-      type: 'broadcast',
-      event: 'elements_update',
-      payload: {
-        senderId: currentUser.id,
-        elements,
-        timestamp: Date.now(),
-      },
-    })
-  }, [currentUser.id])
+  const broadcastElementsUpdate = useCallback(
+    (elements) => {
+      if (!clientRef.current?.connected) return
+      clientRef.current.publish(
+        `syncboard/v2/room/${cleanRoom}/elements`,
+        JSON.stringify({
+          senderId: currentUser.id,
+          elements,
+        })
+      )
+    },
+    [cleanRoom, currentUser]
+  )
 
   /**
-   * Host kicks/removes an invited collaborator from this board.
-   */
-  const kickCollaborator = useCallback((targetUserId, targetUserName) => {
-    channelRef.current?.send({
-      type: 'broadcast',
-      event: 'kick_user',
-      payload: {
-        targetUserId,
-        targetUserName,
-        kickedBy: currentUser.name,
-      },
-    })
-    setCollaborators((prev) => prev.filter((p) => p.id !== targetUserId))
-    setRemoteCursors((prev) => {
-      const next = { ...prev }
-      delete next[targetUserId]
-      return next
-    })
-  }, [currentUser.name])
-
-  /**
-   * Broadcast animated emoji reaction at (worldX, worldY).
+   * Broadcast emoji reaction.
    */
   const broadcastReaction = useCallback(
-    (emoji, worldX, worldY) => {
+    (emoji, x, y) => {
       const reactionPayload = {
-        id: `rx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id: `rx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         userId: currentUser.id,
-        userName: currentUser.name,
-        userColor: currentUser.color,
         emoji,
-        x: worldX,
-        y: worldY,
-        createdAt: Date.now(),
+        x,
+        y,
+        color: currentUser.color,
+        name: currentUser.name,
       }
 
-      channelRef.current?.send({
-        type: 'broadcast',
-        event: 'emoji_reaction',
-        payload: reactionPayload,
-      })
-
-      // Dispatch locally immediately for zero latency
+      if (clientRef.current?.connected) {
+        clientRef.current.publish(
+          `syncboard/v2/room/${cleanRoom}/reaction`,
+          JSON.stringify(reactionPayload)
+        )
+      }
       onReactionRef.current?.(reactionPayload)
     },
-    [currentUser]
+    [cleanRoom, currentUser]
   )
 
   /**
@@ -327,18 +436,18 @@ export function useCollaboration(
    */
   const broadcastPresenterView = useCallback(
     (viewport) => {
-      channelRef.current?.send({
-        type: 'broadcast',
-        event: 'presenter_view',
-        payload: {
+      if (!clientRef.current?.connected) return
+      clientRef.current.publish(
+        `syncboard/v2/room/${cleanRoom}/presenter`,
+        JSON.stringify({
           userId: currentUser.id,
           name: currentUser.name,
           color: currentUser.color,
           viewport,
-        },
-      })
+        })
+      )
     },
-    [currentUser]
+    [cleanRoom, currentUser]
   )
 
   /**
@@ -356,17 +465,39 @@ export function useCollaboration(
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }
 
-      channelRef.current?.send({
-        type: 'broadcast',
-        event: 'chat_message',
-        payload: messagePayload,
-      })
-
-      // Dispatch locally
+      if (clientRef.current?.connected) {
+        clientRef.current.publish(
+          `syncboard/v2/room/${cleanRoom}/chat`,
+          JSON.stringify(messagePayload)
+        )
+      }
       onChatMessageRef.current?.(messagePayload)
       return messagePayload
     },
-    [currentUser]
+    [cleanRoom, currentUser]
+  )
+
+  /**
+   * Kick collaborator from room (host action).
+   */
+  const kickCollaborator = useCallback(
+    (targetUserId) => {
+      if (!clientRef.current?.connected) return
+      clientRef.current.publish(
+        `syncboard/v2/room/${cleanRoom}/kick`,
+        JSON.stringify({
+          targetUserId,
+          hostId: currentUser.id,
+        })
+      )
+      setCollaborators((prev) => prev.filter((c) => c.id !== targetUserId))
+      setRemoteCursors((prev) => {
+        const next = { ...prev }
+        delete next[targetUserId]
+        return next
+      })
+    },
+    [cleanRoom, currentUser]
   )
 
   return {

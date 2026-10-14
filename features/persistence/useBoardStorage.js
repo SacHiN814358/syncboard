@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { generateId } from '@/lib/utils'
 
-const DEFAULT_BOARD_ELEMENTS = [
+const STARTER_BOARD_ELEMENTS = [
   {
     id: 'starter-rect-1',
     type: 'rectangle',
@@ -62,13 +61,13 @@ const DEFAULT_BOARD_ELEMENTS = [
     y: 250,
     width: 240,
     height: 140,
-    text: '💡 Paint Tips:\n• Pick Pencil or Brush upar se\n• Choose color & size right on top\n• Click & drag anywhere to paint!\n• Share link to draw together live!',
+    text: '💡 Paint Tips:\n• Pick Pencil or Brush upar se\n• Choose color & size right on top\n• Click & drag anywhere to paint!\n• Share code to draw together live!',
     bgColor: '#fff3bf',
   },
 ]
 
 /**
- * Hook for persisting board data to Supabase with localStorage backup.
+ * Hook for persisting board data with localStorage backup and optional Supabase sync.
  *
  * @param {string} roomId
  */
@@ -76,22 +75,26 @@ export function useBoardStorage(roomId) {
   const supabase = createClient()
   const [boardTitle, setBoardTitle] = useState('Untitled Board')
   const [initialLoaded, setInitialLoaded] = useState(false)
-  const [saveStatus, setSaveStatus] = useState('saved') // 'saved' | 'saving' | 'offline'
+  const [saveStatus, setSaveStatus] = useState('saved')
   const saveTimeoutRef = useRef(null)
   const isPostgresReadyRef = useRef(false)
 
-  // 1. Load initial board elements from Supabase or localStorage
+  // 1. Load initial board elements from cache or database
   const loadBoard = useCallback(async () => {
-    if (!roomId) return DEFAULT_BOARD_ELEMENTS
+    if (!roomId) return STARTER_BOARD_ELEMENTS
 
-    // Check localStorage first for instant paint
-    const localKey = `syncboard_room_${roomId}`
-    let fallbackElements = DEFAULT_BOARD_ELEMENTS
+    const cleanRoom = roomId.trim().toUpperCase()
+    const localKey = `syncboard_room_${cleanRoom}`
+    const isHost = typeof window !== 'undefined' && localStorage.getItem(`syncboard_host_${cleanRoom}`) === 'true'
+
+    // If host and no saved board, show starter template; if guest/joining, start clean waiting for peer sync
+    let fallbackElements = isHost ? STARTER_BOARD_ELEMENTS : []
+
     try {
       const cached = localStorage.getItem(localKey)
       if (cached) {
         const parsed = JSON.parse(cached)
-        if (parsed.elements && parsed.elements.length > 0) {
+        if (parsed.elements && Array.isArray(parsed.elements) && parsed.elements.length > 0) {
           fallbackElements = parsed.elements
         }
         if (parsed.title) {
@@ -100,76 +103,76 @@ export function useBoardStorage(roomId) {
       }
     } catch (_) {}
 
-    if (!supabase) {
-      setInitialLoaded(true)
-      return fallbackElements
-    }
+    // Check optional Supabase with quick timeout so it never blocks or hangs
+    if (supabase) {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 2000)
 
-    try {
-      const { data, error } = await supabase
-        .from('syncboard_rooms')
-        .select('*')
-        .eq('id', roomId)
-        .maybeSingle()
+        const { data, error } = await supabase
+          .from('syncboard_rooms')
+          .select('*')
+          .eq('id', cleanRoom)
+          .abortSignal(controller.signal)
+          .maybeSingle()
 
-      if (!error && data) {
-        isPostgresReadyRef.current = true
-        if (data.title) setBoardTitle(data.title)
-        if (Array.isArray(data.elements) && data.elements.length > 0) {
-          setInitialLoaded(true)
-          return data.elements
+        clearTimeout(timeoutId)
+
+        if (!error && data) {
+          isPostgresReadyRef.current = true
+          if (data.title) setBoardTitle(data.title)
+          if (Array.isArray(data.elements) && data.elements.length > 0) {
+            setInitialLoaded(true)
+            return data.elements
+          }
+        } else if (!error && !data && isHost) {
+          isPostgresReadyRef.current = true
+          supabase.from('syncboard_rooms').insert({
+            id: cleanRoom,
+            title: 'Untitled Board',
+            elements: fallbackElements,
+          }).then(() => {})
         }
-      } else if (!error && !data) {
-        // Room doesn't exist yet: insert starter room
-        isPostgresReadyRef.current = true
-        await supabase.from('syncboard_rooms').insert({
-          id: roomId,
-          title: 'Untitled Board',
-          elements: fallbackElements,
-        })
+      } catch (_) {
+        isPostgresReadyRef.current = false
       }
-    } catch (_) {
-      isPostgresReadyRef.current = false
     }
 
     setInitialLoaded(true)
     return fallbackElements
   }, [roomId, supabase])
 
-  // 2. Debounced save to Supabase and localStorage
+  // 2. Debounced save to localStorage and optional Supabase
   const saveBoard = useCallback(
     (elements, title = boardTitle) => {
       setSaveStatus('saving')
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
 
       saveTimeoutRef.current = setTimeout(async () => {
-        // Save to localStorage immediately
+        const cleanRoom = (roomId || 'DEFAULT').trim().toUpperCase()
+
+        // 1. Save to local storage
         try {
           localStorage.setItem(
-            `syncboard_room_${roomId}`,
-            JSON.stringify({ id: roomId, title, elements, updatedAt: Date.now() })
+            `syncboard_room_${cleanRoom}`,
+            JSON.stringify({ id: cleanRoom, title, elements, updatedAt: Date.now() })
           )
         } catch (_) {}
 
+        // 2. Save to Supabase if available
         if (supabase && isPostgresReadyRef.current) {
           try {
-            const { error } = await supabase.from('syncboard_rooms').upsert({
-              id: roomId,
+            await supabase.from('syncboard_rooms').upsert({
+              id: cleanRoom,
               title,
               elements,
               updated_at: new Date().toISOString(),
             })
-
-            if (!error) {
-              setSaveStatus('saved')
-              return
-            }
           } catch (_) {}
         }
 
-        // If Supabase table isn't created yet or network offline, state is 'local'
         setSaveStatus('saved')
-      }, 900)
+      }, 700)
     },
     [roomId, boardTitle, supabase]
   )
