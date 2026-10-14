@@ -11,6 +11,7 @@ import {
   KeyRound,
   Copy,
   Check,
+  Sparkles,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -47,6 +48,7 @@ export default function TopNav({
   onOpenInvite,
   onOpenJoinCode,
   onNewBoard,
+  onOpenAiDiagram,
   isHost = false,
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
@@ -156,8 +158,18 @@ export default function TopNav({
         </div>
       </div>
 
-      {/* Right Controls: New + Join + Invite + Collaborators + Zoom + Export */}
+      {/* Right Controls: AI + New + Join + Invite + Collaborators + Zoom + Export */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* AI Diagram Button */}
+        <button
+          onClick={onOpenAiDiagram}
+          title="Generate smart flowcharts, mind maps & diagrams with AI"
+          className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs hover:shadow-sm cursor-pointer"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-purple-200 animate-pulse" />
+          <span className="hidden sm:inline">AI Diagram</span>
+        </button>
+
         {/* New Board Button */}
         <button
           onClick={onNewBoard}

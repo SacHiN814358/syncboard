@@ -17,6 +17,7 @@ import ExportModal from '@/components/ExportModal'
 import SqlHelpModal from '@/components/SqlHelpModal'
 import InviteModal from '@/components/InviteModal'
 import JoinCodeModal from '@/components/JoinCodeModal'
+import AiDiagramModal from '@/components/AiDiagramModal'
 import ReactionOverlay from '@/components/ReactionOverlay'
 import ReactionPicker, { EMOJI_LIST } from '@/components/ReactionPicker'
 import { screenToWorld } from './viewport'
@@ -66,6 +67,7 @@ export default function BoardWorkspace({ roomId }) {
   const [sqlModalOpen, setSqlModalOpen] = useState(false)
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [joinCodeModalOpen, setJoinCodeModalOpen] = useState(false)
+  const [aiDiagramModalOpen, setAiDiagramModalOpen] = useState(false)
 
   // 6. Multi-User Live Drawing Previews & Reactions State
   const [remotePreviews, setRemotePreviews] = useState({})
@@ -287,6 +289,17 @@ export default function BoardWorkspace({ roomId }) {
     [elements, viewport, handleElementsChange]
   )
 
+  // Insert AI generated diagram elements onto board
+  const handleInsertAiElements = useCallback(
+    (newElements) => {
+      if (!newElements || newElements.length === 0) return
+      const updated = [...elements, ...newElements]
+      handleElementsChange(updated)
+      setSelectedElement(newElements[0] || null)
+    },
+    [elements, handleElementsChange]
+  )
+
   // Keyboard Shortcuts Listener
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -425,6 +438,7 @@ export default function BoardWorkspace({ roomId }) {
         onOpenSqlModal={() => setSqlModalOpen(true)}
         onOpenInvite={() => setInviteModalOpen(true)}
         onOpenJoinCode={() => setJoinCodeModalOpen(true)}
+        onOpenAiDiagram={() => setAiDiagramModalOpen(true)}
         onNewBoard={handleNewBoard}
         isHost={isHost}
       />
@@ -601,6 +615,13 @@ export default function BoardWorkspace({ roomId }) {
       <JoinCodeModal
         isOpen={joinCodeModalOpen}
         onClose={() => setJoinCodeModalOpen(false)}
+      />
+
+      <AiDiagramModal
+        isOpen={aiDiagramModalOpen}
+        onClose={() => setAiDiagramModalOpen(false)}
+        onInsertElements={handleInsertAiElements}
+        viewport={viewport}
       />
 
       {/* 7. Kicked Out Overlay for Removed User */}
