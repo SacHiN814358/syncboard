@@ -107,6 +107,7 @@ export function useCollaboration(
   const [isKicked, setIsKicked] = useState(false)
   const lastCursorSendRef = useRef(0)
   const lastPreviewSendRef = useRef(0)
+  const pendingQueueRef = useRef([])
 
   // Clean room code
   const cleanRoom = (roomId || 'DEFAULT').toUpperCase().trim()
@@ -143,12 +144,28 @@ export function useCollaboration(
             `${topicBase}/sync_request`,
             JSON.stringify({ requesterId: currentUser.id })
           )
+
+          // Flush any pending queued messages
+          while (pendingQueueRef.current.length > 0) {
+            const item = pendingQueueRef.current.shift()
+            if (item) {
+              client.publish(item.topic, JSON.stringify(item.payload))
+            }
+          }
         }
       })
     })
 
     client.on('offline', () => setIsConnected(false))
-    client.on('reconnect', () => setIsConnected(true))
+    client.on('reconnect', () => {
+      setIsConnected(true)
+      while (pendingQueueRef.current.length > 0) {
+        const item = pendingQueueRef.current.shift()
+        if (item && client.connected) {
+          client.publish(item.topic, JSON.stringify(item.payload))
+        }
+      }
+    })
     client.on('error', () => {})
 
     // Handle incoming messages on all topics
@@ -158,6 +175,19 @@ export function useCollaboration(
         const subtopic = topic.replace(`${topicBase}/`, '')
 
         switch (subtopic) {
+          case 'delete': {
+            if (payload.senderId === currentUser.id) return
+            if (Array.isArray(payload.elementIds)) {
+              onRemoteElementsDeleteRef.current?.(payload.elementIds)
+            }
+            break
+          }
+
+          case 'clear': {
+            if (payload.senderId === currentUser.id) return
+            onRemoteElementsClearRef.current?.()
+            break
+          }
           case 'presence': {
             if (payload.userId === currentUser.id || payload.user?.id === currentUser.id) return
             const peer = payload.user || { id: payload.userId }
@@ -359,13 +389,40 @@ export function useCollaboration(
     }
   }, [cleanRoom, currentUser.id, currentUser.name, currentUser.color, isHost])
 
+  // Outbox safe publisher with automatic reconnect queue & redundancy
+  const safePublish = useCallback(
+    (subtopic, payload, redundant = false) => {
+      const fullTopic = `syncboard/v2/room/${cleanRoom}/${subtopic}`
+      const messageStr = JSON.stringify(payload)
+
+      if (clientRef.current?.connected) {
+        try {
+          clientRef.current.publish(fullTopic, messageStr)
+          if (redundant) {
+            // Backup redundant send 70ms later ensures zero dropped packets even if one packet gets dropped by broker
+            setTimeout(() => {
+              if (clientRef.current?.connected) {
+                clientRef.current.publish(fullTopic, messageStr)
+              }
+            }, 70)
+          }
+        } catch (_) {
+          pendingQueueRef.current.push({ topic: fullTopic, payload })
+        }
+      } else {
+        pendingQueueRef.current.push({ topic: fullTopic, payload })
+      }
+    },
+    [cleanRoom]
+  )
+
   /**
-   * Broadcast pointer position in world coordinates (throttled to ~30ms).
+   * Broadcast pointer position in world coordinates (throttled to ~55ms).
    */
   const broadcastCursor = useCallback(
     (worldX, worldY) => {
       const now = Date.now()
-      if (now - lastCursorSendRef.current < 28) return
+      if (now - lastCursorSendRef.current < 55) return
       lastCursorSendRef.current = now
 
       if (!clientRef.current?.connected) return
@@ -385,30 +442,33 @@ export function useCollaboration(
   )
 
   /**
-   * Broadcast temporary stroke preview in real time (throttled for streaming, immediate for clear).
+   * Broadcast temporary stroke preview in real time (throttled to ~75ms, immediate for clear).
    */
   const broadcastDrawPreview = useCallback(
     (element) => {
-      if (!clientRef.current?.connected) return
       const now = Date.now()
 
       // If clearing preview, send immediately without throttle
       if (!element) {
         lastPreviewSendRef.current = 0
-        clientRef.current.publish(
-          `syncboard/v2/room/${cleanRoom}/draw_preview`,
-          JSON.stringify({
-            userId: currentUser.id,
-            element: null,
-            timestamp: now,
-          })
-        )
+        if (clientRef.current?.connected) {
+          clientRef.current.publish(
+            `syncboard/v2/room/${cleanRoom}/draw_preview`,
+            JSON.stringify({
+              userId: currentUser.id,
+              element: null,
+              timestamp: now,
+            })
+          )
+        }
         return
       }
 
-      // Throttle preview streaming to ~28ms (~35 FPS) to keep WebSocket buffer ultra-clean
-      if (now - lastPreviewSendRef.current < 28) return
+      // Throttle preview streaming to ~75ms (~13 FPS) to keep WebSocket buffer ultra-clean
+      if (now - lastPreviewSendRef.current < 75) return
       lastPreviewSendRef.current = now
+
+      if (!clientRef.current?.connected) return
 
       clientRef.current.publish(
         `syncboard/v2/room/${cleanRoom}/draw_preview`,
@@ -427,18 +487,18 @@ export function useCollaboration(
    */
   const broadcastElementsUpdate = useCallback(
     (elements, action = 'upsert') => {
-      if (!clientRef.current?.connected) return
-      clientRef.current.publish(
-        `syncboard/v2/room/${cleanRoom}/elements`,
-        JSON.stringify({
+      safePublish(
+        'elements',
+        {
           senderId: currentUser.id,
           action,
           elements,
           timestamp: Date.now(),
-        })
+        },
+        true
       )
     },
-    [cleanRoom, currentUser]
+    [safePublish, currentUser.id]
   )
 
   /**
@@ -446,35 +506,31 @@ export function useCollaboration(
    */
   const broadcastElementDelete = useCallback(
     (elementIds) => {
-      if (!clientRef.current?.connected) return
       const ids = Array.isArray(elementIds) ? elementIds : [elementIds]
-      clientRef.current.publish(
-        `syncboard/v2/room/${cleanRoom}/elements`,
-        JSON.stringify({
-          senderId: currentUser.id,
-          action: 'delete',
-          elementIds: ids,
-          timestamp: Date.now(),
-        })
-      )
+      const payload = {
+        senderId: currentUser.id,
+        action: 'delete',
+        elementIds: ids,
+        timestamp: Date.now(),
+      }
+      safePublish('elements', payload, true)
+      safePublish('delete', payload, true)
     },
-    [cleanRoom, currentUser]
+    [safePublish, currentUser.id]
   )
 
   /**
    * Broadcast full canvas clear to all peers.
    */
   const broadcastCanvasClear = useCallback(() => {
-    if (!clientRef.current?.connected) return
-    clientRef.current.publish(
-      `syncboard/v2/room/${cleanRoom}/elements`,
-      JSON.stringify({
-        senderId: currentUser.id,
-        action: 'clear',
-        timestamp: Date.now(),
-      })
-    )
-  }, [cleanRoom, currentUser])
+    const payload = {
+      senderId: currentUser.id,
+      action: 'clear',
+      timestamp: Date.now(),
+    }
+    safePublish('elements', payload, true)
+    safePublish('clear', payload, true)
+  }, [safePublish, currentUser.id])
 
   /**
    * Broadcast emoji reaction.

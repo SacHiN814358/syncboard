@@ -159,6 +159,17 @@ export default function BoardWorkspace({ roomId }) {
         return updated
       })
       setSelectedElement((sel) => (sel && elementIds.includes(sel.id) ? null : sel))
+      setRemotePreviews((prev) => {
+        let changed = false
+        const next = { ...prev }
+        for (const uid in next) {
+          if (elementIds.includes(next[uid]?.id)) {
+            delete next[uid]
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
     },
     [saveBoard]
   )
@@ -166,11 +177,31 @@ export default function BoardWorkspace({ roomId }) {
   const handleRemoteElementsClear = useCallback(() => {
     elementsRef.current = []
     setElements([])
+    setRemotePreviews({})
     historyRef.current.push([])
     saveBoard([])
     setSelectedElement(null)
     toast('Canvas was cleared by collaborator 🎨', { id: 'canvas-cleared' })
   }, [saveBoard])
+
+  // Automatically purge any stale remote previews older than 2s so they never freeze on screen
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRemotePreviews((prev) => {
+        const now = Date.now()
+        let changed = false
+        const next = { ...prev }
+        for (const uid in next) {
+          if (next[uid]?._receivedAt && now - next[uid]._receivedAt > 2000) {
+            delete next[uid]
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
+    }, 1500)
+    return () => clearInterval(timer)
+  }, [])
 
   // 8. Collaboration Hook (Resilient WebSocket Multiplayer Engine)
   const {
@@ -204,7 +235,13 @@ export default function BoardWorkspace({ roomId }) {
           delete next[previewData.userId]
           return next
         }
-        return { ...prev, [previewData.userId]: previewData.element }
+        return {
+          ...prev,
+          [previewData.userId]: {
+            ...previewData.element,
+            _receivedAt: Date.now(),
+          },
+        }
       })
     },
     onReaction: (rx) => {
@@ -464,6 +501,7 @@ export default function BoardWorkspace({ roomId }) {
     if (elementsRef.current.length === 0 && elements.length === 0) return
     elementsRef.current = []
     setElements([])
+    setRemotePreviews({})
     historyRef.current.push([])
     saveBoard([])
     broadcastCanvasClear()

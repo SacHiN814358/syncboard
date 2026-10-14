@@ -890,11 +890,26 @@ export default function Canvas({
         }
       }
 
-      // Broadcast transient drawing preview to collaborators (throttled to ~32ms / 30 FPS)
+      // Broadcast transient drawing preview to collaborators (throttled to ~75ms with downsampled points to prevent socket congestion)
       const now = Date.now()
-      if (now - lastPreviewTimeRef.current >= 32) {
+      if (now - lastPreviewTimeRef.current >= 75) {
         lastPreviewTimeRef.current = now
-        onDrawPreview?.(current)
+        if (current.type === 'pen' || current.type === 'brush') {
+          const pts = current.points || []
+          if (pts.length > 25) {
+            const step = Math.ceil(pts.length / 25)
+            const sampled = []
+            for (let i = 0; i < pts.length; i += step) {
+              sampled.push(pts[i])
+            }
+            sampled.push(pts[pts.length - 1])
+            onDrawPreview?.({ ...current, points: sampled })
+          } else {
+            onDrawPreview?.({ ...current, points: [...pts] })
+          }
+        } else {
+          onDrawPreview?.({ ...current })
+        }
       }
       needsRepaintRef.current = true
     }
@@ -939,7 +954,11 @@ export default function Canvas({
 
     // Commit transient element
     if (interactionModeRef.current === 'draw' && transientElementRef.current) {
-      const el = { ...transientElementRef.current }
+      const raw = transientElementRef.current
+      const el = {
+        ...raw,
+        points: raw.points ? [...raw.points] : undefined,
+      }
       transientElementRef.current = null
       lastPreviewTimeRef.current = 0
       onDrawPreview?.(null) // clear transient preview immediately
