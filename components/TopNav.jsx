@@ -52,6 +52,8 @@ export default function TopNav({
   onOpenAiDiagram,
   isPresenter = false,
   onTogglePresenter,
+  activePresenter = null,
+  onFollowPresenter,
   followingUser = null,
   onStopFollowing,
   isHost = false,
@@ -196,6 +198,18 @@ export default function TopNav({
           <span className="hidden sm:inline">Join Code</span>
         </button>
 
+        {/* Follow Active Presenter Quick Pill */}
+        {activePresenter && !followingUser && !isPresenter && (
+          <button
+            onClick={() => onFollowPresenter?.(activePresenter)}
+            className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer animate-pulse"
+            title={`Click to follow ${activePresenter.name}'s view`}
+          >
+            <Radio className="w-3.5 h-3.5 text-rose-600" />
+            <span>Follow {activePresenter.name}</span>
+          </button>
+        )}
+
         {/* Presenter / Follow Me Button */}
         <button
           onClick={onTogglePresenter}
@@ -234,7 +248,9 @@ export default function TopNav({
         >
           {/* Current user avatar */}
           <div
-            className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-xs"
+            className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-xs ${
+              isPresenter ? 'ring-2 ring-rose-500 ring-offset-1' : ''
+            }`}
             style={{ backgroundColor: currentUser?.color || '#1971c2' }}
             title={isHost ? `You (Host 👑)` : `You (${currentUser?.name})`}
           >
@@ -242,16 +258,31 @@ export default function TopNav({
           </div>
 
           {/* Connected peers */}
-          {collaborators.map((peer) => (
-            <div
-              key={peer.id}
-              className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-xs animate-in fade-in"
-              style={{ backgroundColor: peer.color || '#2f9e44' }}
-              title={`${peer.name} (Click to manage)`}
-            >
-              {peer.name?.[0] || 'C'}
-            </div>
-          ))}
+          {collaborators.map((peer) => {
+            const isPeerPresenting = activePresenter?.userId === peer.id
+            return (
+              <div
+                key={peer.id}
+                onClick={(e) => {
+                  if (isPeerPresenting) {
+                    e.stopPropagation()
+                    onFollowPresenter?.(activePresenter)
+                  }
+                }}
+                className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-xs animate-in fade-in transition-transform hover:scale-110 ${
+                  isPeerPresenting ? 'ring-2 ring-rose-500 ring-offset-1 animate-pulse' : ''
+                }`}
+                style={{ backgroundColor: peer.color || '#2f9e44' }}
+                title={
+                  isPeerPresenting
+                    ? `${peer.name} is Presenting! (Click to follow)`
+                    : `${peer.name} (Online)`
+                }
+              >
+                {peer.name?.[0] || 'C'}
+              </div>
+            )
+          })}
         </div>
 
         {/* Zoom Reset Pill */}
@@ -285,16 +316,35 @@ export default function TopNav({
       </div>
     </header>
 
-    {/* Following Presenter Live Banner */}
+    {/* Floating Banner 1: Someone is Presenting & You are NOT following yet */}
+    {activePresenter && !followingUser && !isPresenter && (
+      <div className="fixed top-15 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-[#18181b]/95 backdrop-blur-md text-white text-xs font-medium shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-3 border border-rose-500/40 select-none">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+          <span>🎥 <strong className="text-rose-400 font-semibold">{activePresenter.name}</strong> is presenting</span>
+        </div>
+        <button
+          onClick={() => onFollowPresenter?.(activePresenter)}
+          className="px-3 py-1 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-1 active:scale-95"
+        >
+          <Radio className="w-3.5 h-3.5 text-white" />
+          <span>Follow View</span>
+        </button>
+      </div>
+    )}
+
+    {/* Floating Banner 2: Currently Following Presenter */}
     {followingUser && (
-      <div className="fixed top-15 left-1/2 -translate-x-1/2 z-40 px-3.5 py-1.5 rounded-full bg-[#212529]/95 backdrop-blur-md text-white text-xs font-medium shadow-lg flex items-center gap-2 animate-in slide-in-from-top-2 border border-white/10 select-none">
-        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        <span>Following <strong className="text-emerald-300">{followingUser.name}</strong>&apos;s view</span>
+      <div className="fixed top-15 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-[#18181b]/95 backdrop-blur-md text-white text-xs font-medium shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-2 border border-emerald-500/40 select-none">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Following <strong className="text-emerald-300 font-semibold">{followingUser.name}</strong>&apos;s camera</span>
+        </div>
         <button
           onClick={onStopFollowing}
-          className="ml-1.5 px-2 py-0.5 rounded-full bg-white/20 hover:bg-white/30 text-[10px] font-semibold transition-colors cursor-pointer"
+          className="px-2.5 py-1 rounded-full bg-white/20 hover:bg-white/30 text-[11px] font-bold text-white transition-colors cursor-pointer"
         >
-          Stop
+          Stop Following
         </button>
       </div>
     )}

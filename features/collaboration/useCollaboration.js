@@ -435,7 +435,7 @@ export function useCollaboration(
    * Broadcast presenter view stream coordinates.
    */
   const broadcastPresenterView = useCallback(
-    (viewport) => {
+    (viewport, isPresenting = true) => {
       if (!clientRef.current?.connected) return
       clientRef.current.publish(
         `syncboard/v2/room/${cleanRoom}/presenter`,
@@ -444,6 +444,8 @@ export function useCollaboration(
           name: currentUser.name,
           color: currentUser.color,
           viewport,
+          isPresenting: Boolean(isPresenting),
+          timestamp: Date.now(),
         })
       )
     },

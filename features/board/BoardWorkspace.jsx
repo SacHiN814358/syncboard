@@ -78,6 +78,7 @@ export default function BoardWorkspace({ roomId }) {
 
   // 7. Follow Presenter & Realtime Chat State
   const [isPresenter, setIsPresenter] = useState(false)
+  const [activePresenter, setActivePresenter] = useState(null)
   const [followingUser, setFollowingUser] = useState(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [messages, setMessages] = useState([])
@@ -146,29 +147,29 @@ export default function BoardWorkspace({ roomId }) {
       }, 2400)
     },
     onPresenterUpdate: (payload) => {
+      if (payload.isPresenting === false) {
+        setActivePresenter((prev) => (prev?.userId === payload.userId ? null : prev))
+        setFollowingUser((prev) => {
+          if (prev?.id === payload.userId) {
+            toast('Presenter stopped sharing their view', { id: 'presenter-ended' })
+            return null
+          }
+          return prev
+        })
+        return
+      }
+
+      // Presenter is actively broadcasting
+      setActivePresenter({
+        userId: payload.userId,
+        name: payload.name,
+        color: payload.color,
+        viewport: payload.viewport,
+      })
+
+      // If user is currently following this presenter, keep camera locked smoothly
       setFollowingUser((prev) => {
-        if (!prev) {
-          toast(
-            (t) => (
-              <div className="flex items-center gap-2">
-                <span>🎥 <b>{payload.name}</b> is presenting!</span>
-                <button
-                  onClick={() => {
-                    setFollowingUser({ id: payload.userId, name: payload.name })
-                    setViewport(payload.viewport)
-                    toast.dismiss(t.id)
-                  }}
-                  className="px-2 py-0.5 bg-[#1971c2] hover:bg-[#1864ab] text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
-                >
-                  Follow
-                </button>
-              </div>
-            ),
-            { id: `presenter-${payload.userId}`, duration: 5000 }
-          )
-          return null
-        }
-        if (prev.id === payload.userId) {
+        if (prev?.id === payload.userId && payload.viewport) {
           setViewport(payload.viewport)
           return prev
         }
@@ -190,11 +191,16 @@ export default function BoardWorkspace({ roomId }) {
     },
   })
 
-  // Broadcast viewport changes when in Presenter mode
+  // Broadcast viewport changes and presence pulse when in Presenter mode
   useEffect(() => {
-    if (isPresenter) {
-      broadcastPresenterView(viewport)
-    }
+    if (!isPresenter) return
+
+    broadcastPresenterView(viewport, true)
+    const interval = setInterval(() => {
+      broadcastPresenterView(viewport, true)
+    }, 2000)
+
+    return () => clearInterval(interval)
   }, [isPresenter, viewport, broadcastPresenterView])
 
   // Toggle presenter mode
@@ -203,14 +209,33 @@ export default function BoardWorkspace({ roomId }) {
       const next = !prev
       if (next) {
         setFollowingUser(null)
+        setActivePresenter(null)
         toast.success('You are now presenting! Collaborators can follow your view 🎥')
-        broadcastPresenterView(viewport)
+        broadcastPresenterView(viewport, true)
       } else {
         toast('Stopped presenting view')
+        broadcastPresenterView(viewport, false)
       }
       return next
     })
   }, [viewport, broadcastPresenterView])
+
+  // Follow presenter
+  const handleFollowPresenter = useCallback((presenter) => {
+    if (!presenter) return
+    setIsPresenter(false)
+    setFollowingUser({ id: presenter.userId, name: presenter.name })
+    if (presenter.viewport) {
+      setViewport(presenter.viewport)
+    }
+    toast.success(`Following ${presenter.name}'s view 🎥`, { id: 'follow-toast' })
+  }, [])
+
+  // Stop following
+  const handleStopFollowing = useCallback(() => {
+    setFollowingUser(null)
+    toast('Stopped following view', { id: 'follow-toast' })
+  }, [])
 
   // Toggle Chat drawer and clear unread count
   const handleToggleChat = useCallback(() => {
@@ -540,8 +565,10 @@ export default function BoardWorkspace({ roomId }) {
         onNewBoard={handleNewBoard}
         isPresenter={isPresenter}
         onTogglePresenter={handleTogglePresenter}
+        activePresenter={activePresenter}
+        onFollowPresenter={handleFollowPresenter}
         followingUser={followingUser}
-        onStopFollowing={() => setFollowingUser(null)}
+        onStopFollowing={handleStopFollowing}
         isHost={isHost}
       />
 
