@@ -25,6 +25,8 @@ export function useCollaboration(
   roomId,
   {
     onRemoteElementsChange,
+    onRemoteElementsDelete,
+    onRemoteElementsClear,
     onRemoteTitleChange,
     onRemoteDrawPreview,
     onReaction,
@@ -37,6 +39,8 @@ export function useCollaboration(
 ) {
   const clientRef = useRef(null)
   const onRemoteElementsChangeRef = useRef(onRemoteElementsChange)
+  const onRemoteElementsDeleteRef = useRef(onRemoteElementsDelete)
+  const onRemoteElementsClearRef = useRef(onRemoteElementsClear)
   const onRemoteTitleChangeRef = useRef(onRemoteTitleChange)
   const onRemoteDrawPreviewRef = useRef(onRemoteDrawPreview)
   const onReactionRef = useRef(onReaction)
@@ -45,64 +49,57 @@ export function useCollaboration(
   const currentElementsRef = useRef(currentElements)
   const boardTitleRef = useRef(boardTitle)
 
-  useEffect(() => {
-    onRemoteElementsChangeRef.current = onRemoteElementsChange
-  }, [onRemoteElementsChange])
+  // Keep refs immediately fresh without render lag
+  currentElementsRef.current = currentElements
+  boardTitleRef.current = boardTitle
+  onRemoteElementsChangeRef.current = onRemoteElementsChange
+  onRemoteElementsDeleteRef.current = onRemoteElementsDelete
+  onRemoteElementsClearRef.current = onRemoteElementsClear
+  onRemoteTitleChangeRef.current = onRemoteTitleChange
+  onRemoteDrawPreviewRef.current = onRemoteDrawPreview
+  onReactionRef.current = onReaction
+  onPresenterUpdateRef.current = onPresenterUpdate
+  onChatMessageRef.current = onChatMessage
 
-  useEffect(() => {
-    onRemoteTitleChangeRef.current = onRemoteTitleChange
-  }, [onRemoteTitleChange])
-
-  useEffect(() => {
-    onRemoteDrawPreviewRef.current = onRemoteDrawPreview
-  }, [onRemoteDrawPreview])
-
-  useEffect(() => {
-    onReactionRef.current = onReaction
-  }, [onReaction])
-
-  useEffect(() => {
-    onPresenterUpdateRef.current = onPresenterUpdate
-  }, [onPresenterUpdate])
-
-  useEffect(() => {
-    onChatMessageRef.current = onChatMessage
-  }, [onChatMessage])
-
-  useEffect(() => {
-    currentElementsRef.current = currentElements
-  }, [currentElements])
-
-  useEffect(() => {
-    boardTitleRef.current = boardTitle
-  }, [boardTitle])
-
-  // Stable local user identity
-  const [currentUser, setCurrentUser] = useState({
-    id: 'usr-default',
-    name: 'You',
-    color: '#1971c2',
+  // Stable local user identity (lazy initialized on first client render)
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = sessionStorage.getItem('syncboard_user')
+        if (saved) return JSON.parse(saved)
+      } catch (_) {}
+      const colorIndex = Math.floor(Math.random() * COLLABORATOR_COLORS.length)
+      const randomNum = Math.floor(100 + Math.random() * 900)
+      const user = {
+        id: `usr-${Math.random().toString(36).substring(2, 9)}`,
+        name: `Dev ${randomNum}`,
+        color: COLLABORATOR_COLORS[colorIndex],
+      }
+      try {
+        sessionStorage.setItem('syncboard_user', JSON.stringify(user))
+      } catch (_) {}
+      return user
+    }
+    return {
+      id: 'usr-default',
+      name: 'You',
+      color: '#1971c2',
+    }
   })
 
+  // Ensure SSR hydration matches storage if client already had an ID
   useEffect(() => {
     if (typeof window === 'undefined') return
     const saved = sessionStorage.getItem('syncboard_user')
     if (saved) {
       try {
-        setCurrentUser(JSON.parse(saved))
-        return
+        const parsed = JSON.parse(saved)
+        if (parsed.id && parsed.id !== currentUser.id) {
+          setCurrentUser(parsed)
+        }
       } catch (_) {}
     }
-    const colorIndex = Math.floor(Math.random() * COLLABORATOR_COLORS.length)
-    const randomNum = Math.floor(100 + Math.random() * 900)
-    const user = {
-      id: `usr-${Math.random().toString(36).substring(2, 9)}`,
-      name: `Dev ${randomNum}`,
-      color: COLLABORATOR_COLORS[colorIndex],
-    }
-    sessionStorage.setItem('syncboard_user', JSON.stringify(user))
-    setCurrentUser(user)
-  }, [])
+  }, [currentUser.id])
 
   const [collaborators, setCollaborators] = useState([])
   const [remoteCursors, setRemoteCursors] = useState({})
@@ -188,12 +185,12 @@ export function useCollaboration(
             })
 
             // If a new peer joined and we already have elements, answer them with state
-            if (payload.type === 'join' && currentElementsRef.current?.length > 0) {
+            if (payload.type === 'join' && (isHost || currentElementsRef.current?.length > 0)) {
               client.publish(
                 `${topicBase}/sync_response`,
                 JSON.stringify({
                   targetId: peer.id,
-                  elements: currentElementsRef.current,
+                  elements: currentElementsRef.current || [],
                   title: boardTitleRef.current,
                 })
               )
@@ -204,12 +201,12 @@ export function useCollaboration(
           case 'sync_request': {
             if (payload.requesterId === currentUser.id) return
             // Send current board state back to the newly joined peer
-            if (currentElementsRef.current && currentElementsRef.current.length > 0) {
+            if (isHost || (currentElementsRef.current && currentElementsRef.current.length > 0)) {
               client.publish(
                 `${topicBase}/sync_response`,
                 JSON.stringify({
                   targetId: payload.requesterId,
-                  elements: currentElementsRef.current,
+                  elements: currentElementsRef.current || [],
                   title: boardTitleRef.current,
                 })
               )
@@ -219,8 +216,8 @@ export function useCollaboration(
 
           case 'sync_response': {
             if (payload.targetId !== currentUser.id) return
-            if (Array.isArray(payload.elements) && payload.elements.length > 0) {
-              onRemoteElementsChangeRef.current?.(payload.elements)
+            if (Array.isArray(payload.elements)) {
+              onRemoteElementsChangeRef.current?.(payload.elements, 'sync')
             }
             if (payload.title && onRemoteTitleChangeRef.current) {
               onRemoteTitleChangeRef.current(payload.title)
@@ -252,9 +249,23 @@ export function useCollaboration(
 
           case 'elements': {
             if (payload.senderId === currentUser.id) return
+
+            // 1. Explicit Element Deletions
+            if (payload.action === 'delete' && Array.isArray(payload.elementIds)) {
+              onRemoteElementsDeleteRef.current?.(payload.elementIds)
+              return
+            }
+
+            // 2. Clear Canvas
+            if (payload.action === 'clear') {
+              onRemoteElementsClearRef.current?.()
+              return
+            }
+
+            // 3. Upsert or Full Elements List
             if (Array.isArray(payload.elements)) {
               onRemoteDrawPreviewRef.current?.({ userId: payload.senderId, element: null })
-              onRemoteElementsChangeRef.current?.(payload.elements)
+              onRemoteElementsChangeRef.current?.(payload.elements, payload.action || 'upsert')
             }
             break
           }
@@ -415,18 +426,55 @@ export function useCollaboration(
    * Broadcast finalized elements change to all peers.
    */
   const broadcastElementsUpdate = useCallback(
-    (elements) => {
+    (elements, action = 'upsert') => {
       if (!clientRef.current?.connected) return
       clientRef.current.publish(
         `syncboard/v2/room/${cleanRoom}/elements`,
         JSON.stringify({
           senderId: currentUser.id,
+          action,
           elements,
+          timestamp: Date.now(),
         })
       )
     },
     [cleanRoom, currentUser]
   )
+
+  /**
+   * Broadcast element deletion to all peers.
+   */
+  const broadcastElementDelete = useCallback(
+    (elementIds) => {
+      if (!clientRef.current?.connected) return
+      const ids = Array.isArray(elementIds) ? elementIds : [elementIds]
+      clientRef.current.publish(
+        `syncboard/v2/room/${cleanRoom}/elements`,
+        JSON.stringify({
+          senderId: currentUser.id,
+          action: 'delete',
+          elementIds: ids,
+          timestamp: Date.now(),
+        })
+      )
+    },
+    [cleanRoom, currentUser]
+  )
+
+  /**
+   * Broadcast full canvas clear to all peers.
+   */
+  const broadcastCanvasClear = useCallback(() => {
+    if (!clientRef.current?.connected) return
+    clientRef.current.publish(
+      `syncboard/v2/room/${cleanRoom}/elements`,
+      JSON.stringify({
+        senderId: currentUser.id,
+        action: 'clear',
+        timestamp: Date.now(),
+      })
+    )
+  }, [cleanRoom, currentUser])
 
   /**
    * Broadcast emoji reaction.
@@ -535,6 +583,8 @@ export function useCollaboration(
     broadcastCursor,
     broadcastDrawPreview,
     broadcastElementsUpdate,
+    broadcastElementDelete,
+    broadcastCanvasClear,
     broadcastReaction,
     broadcastPresenterView,
     broadcastChatMessage,

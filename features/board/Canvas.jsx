@@ -52,6 +52,7 @@ import { BOX_SHAPES, LINE_SHAPES } from './elements'
 export default function Canvas({
   elements,
   onElementsChange,
+  onDeleteElement,
   activeTool,
   onSelectTool,
   currentColor,
@@ -157,8 +158,10 @@ export default function Canvas({
           aspectRatio,
         }
 
-        const latest = elementsRef.current || elements
-        onElementsChange([...latest, newImage])
+        const latest = elementsRef.current || elements || []
+        const updated = [...latest, newImage]
+        elementsRef.current = updated
+        onElementsChange(updated)
         onSelectElement(newImage)
         onSelectTool?.('select')
         needsRepaintRef.current = true
@@ -341,6 +344,12 @@ export default function Canvas({
 
     pointerStartRef.current = { x: screenX, y: screenY, worldX: world.x, worldY: world.y }
     isInteractingRef.current = true
+    dragUpdatedElementsRef.current = null
+
+    // If switching to drawing or non-select tool, deselect previous element so handles don't interfere
+    if (activeTool !== 'select' && selectedElement) {
+      onSelectElement(null)
+    }
 
     // Check if space is held or middle click -> Pan
     if (isSpacePressedRef.current || e.button === 1 || activeTool === 'pan') {
@@ -350,8 +359,8 @@ export default function Canvas({
       return
     }
 
-    // 1. Check if clicking on a resize handle of the currently selected element
-    if (selectedElement) {
+    // 1. Check if clicking on a resize handle of the currently selected element (Select Tool ONLY)
+    if (activeTool === 'select' && selectedElement) {
       const bounds = getElementBounds(selectedElement)
       if (bounds) {
         const handle = getResizeHandleAtPoint(world.x, world.y, bounds, 14 / viewport.zoom)
@@ -372,9 +381,10 @@ export default function Canvas({
       }
     }
 
-    // 2. Double-Click detection on any element across ALL tools (double click to move/drag)
+    // 2. Double-Click detection on any element across ALL tools (double click to select/move)
     const now = Date.now()
-    const hitUnderPointer = findElementAtPoint(world.x, world.y, elements, 10 / viewport.zoom)
+    const currentList = elementsRef.current || elements || []
+    const hitUnderPointer = findElementAtPoint(world.x, world.y, currentList, 10 / viewport.zoom)
     const isDouble =
       now - lastClickTimeRef.current < 400 &&
       hitUnderPointer &&
@@ -396,8 +406,8 @@ export default function Canvas({
       return
     }
 
-    // 3. If element is already selected and user clicks directly on it, drag to move
-    if (selectedElement && hitUnderPointer && hitUnderPointer.id === selectedElement.id) {
+    // 3. If element is already selected and user clicks directly on it (Select Tool ONLY)
+    if (activeTool === 'select' && selectedElement && hitUnderPointer && hitUnderPointer.id === selectedElement.id) {
       interactionModeRef.current = 'drag-element'
       dragOffsetRef.current = {
         x: world.x - (selectedElement.x ?? selectedElement.x1 ?? 0),
@@ -458,7 +468,10 @@ export default function Canvas({
         text: '',
         bgColor: currentStickyColor,
       }
-      onElementsChange([...elements, newSticky])
+      const latest = elementsRef.current || elements || []
+      const updated = [...latest, newSticky]
+      elementsRef.current = updated
+      onElementsChange(updated)
       onSelectElement(newSticky)
       setEditingText({
         id: newSticky.id,
@@ -476,12 +489,14 @@ export default function Canvas({
 
     // Paint Bucket Tool: Fill clicked shape with color
     if (activeTool === 'bucket') {
-      const hit = findElementAtPoint(world.x, world.y, elements, 12 / viewport.zoom)
+      const currentListForBucket = elementsRef.current || elements || []
+      const hit = findElementAtPoint(world.x, world.y, currentListForBucket, 12 / viewport.zoom)
       if (hit) {
         const fillToApply = currentFillColor === 'transparent' ? currentColor : currentFillColor
-        const updated = elements.map((el) =>
+        const updated = currentListForBucket.map((el) =>
           el.id === hit.id ? { ...el, fillColor: fillToApply } : el
         )
+        elementsRef.current = updated
         onElementsChange(updated)
         onSelectElement(updated.find((el) => el.id === hit.id) || null)
         needsRepaintRef.current = true
@@ -909,6 +924,7 @@ export default function Canvas({
 
     // Commit any dragged or resized element changes cleanly ONCE on mouse release
     if (dragUpdatedElementsRef.current) {
+      elementsRef.current = dragUpdatedElementsRef.current
       onElementsChange(dragUpdatedElementsRef.current)
       dragUpdatedElementsRef.current = null
     }
@@ -923,7 +939,7 @@ export default function Canvas({
 
     // Commit transient element
     if (interactionModeRef.current === 'draw' && transientElementRef.current) {
-      const el = transientElementRef.current
+      const el = { ...transientElementRef.current }
       transientElementRef.current = null
       lastPreviewTimeRef.current = 0
       onDrawPreview?.(null) // clear transient preview immediately
@@ -933,12 +949,15 @@ export default function Canvas({
       if (BOX_SHAPES.includes(el.type) && el.width < 3 && el.height < 3) isValid = false
       if (LINE_SHAPES.includes(el.type) && Math.hypot(el.x2 - el.x1, el.y2 - el.y1) < 3) isValid = false
       if (el.type === 'circle' && el.radiusX < 2 && el.radiusY < 2) isValid = false
-      if ((el.type === 'pen' || el.type === 'brush') && el.points.length < 2) isValid = false
+      if ((el.type === 'pen' || el.type === 'brush') && (!el.points || el.points.length < 2)) isValid = false
 
       if (isValid) {
-        const latest = elementsRef.current || elements
-        onElementsChange([...latest, el])
-        onSelectElement(el)
+        const currentList = elementsRef.current || elements || []
+        const updated = currentList.some((item) => item.id === el.id)
+          ? currentList.map((item) => (item.id === el.id ? el : item))
+          : [...currentList, el]
+        elementsRef.current = updated
+        onElementsChange(updated)
       }
     }
 
@@ -948,13 +967,19 @@ export default function Canvas({
     needsRepaintRef.current = true
   }
 
-  // Erase helper
+  // Erase helper (Syncs instant deletion across all connected laptops)
   const eraseAtPoint = (wx, wy) => {
-    const hit = findElementAtPoint(wx, wy, elements, 12 / viewport.zoom)
+    const current = elementsRef.current || elements || []
+    const hit = findElementAtPoint(wx, wy, current, 14 / viewport.zoom)
     if (hit) {
-      const filtered = elements.filter((el) => el.id !== hit.id)
-      onElementsChange(filtered)
-      if (selectedElement?.id === hit.id) onSelectElement(null)
+      const filtered = current.filter((el) => el.id !== hit.id)
+      elementsRef.current = filtered
+      if (onDeleteElement) {
+        onDeleteElement(hit.id)
+      } else {
+        onElementsChange(filtered)
+      }
+      if (selectedElementRef.current?.id === hit.id) onSelectElement(null)
       needsRepaintRef.current = true
     }
   }
@@ -966,7 +991,8 @@ export default function Canvas({
     const screenY = e.clientY - rect.top
     const world = screenToWorld(screenX, screenY, viewport)
 
-    const hit = findElementAtPoint(world.x, world.y, elements, 10 / viewport.zoom)
+    const current = elementsRef.current || elements || []
+    const hit = findElementAtPoint(world.x, world.y, current, 10 / viewport.zoom)
     if (hit) {
       onSelectElement(hit)
       onSelectTool?.('select')
@@ -990,17 +1016,17 @@ export default function Canvas({
   const commitTextEdit = () => {
     if (!editingText) return
     const textVal = textInputRef.current?.value || ''
+    const current = elementsRef.current || elements || []
 
     if (editingText.type === 'text') {
       if (textVal.trim()) {
-        const existing = elements.find((el) => el.id === editingText.id)
+        const existing = current.find((el) => el.id === editingText.id)
+        let updated
         if (existing) {
-          onElementsChange(
-            elements.map((el) => (el.id === editingText.id ? { ...el, text: textVal } : el))
-          )
+          updated = current.map((el) => (el.id === editingText.id ? { ...el, text: textVal } : el))
         } else {
-          onElementsChange([
-            ...elements,
+          updated = [
+            ...current,
             {
               id: editingText.id,
               type: 'text',
@@ -1010,16 +1036,24 @@ export default function Canvas({
               color: currentColor,
               fontSize: currentFontSize,
             },
-          ])
+          ]
         }
+        elementsRef.current = updated
+        onElementsChange(updated)
       } else {
         // Remove empty text
-        onElementsChange(elements.filter((el) => el.id !== editingText.id))
+        const updated = current.filter((el) => el.id !== editingText.id)
+        elementsRef.current = updated
+        if (onDeleteElement) {
+          onDeleteElement(editingText.id)
+        } else {
+          onElementsChange(updated)
+        }
       }
     } else if (editingText.type === 'sticky') {
-      onElementsChange(
-        elements.map((el) => (el.id === editingText.id ? { ...el, text: textVal } : el))
-      )
+      const updated = current.map((el) => (el.id === editingText.id ? { ...el, text: textVal } : el))
+      elementsRef.current = updated
+      onElementsChange(updated)
     }
 
     setEditingText(null)

@@ -43,7 +43,14 @@ export default function BoardWorkspace({ roomId }) {
 
   // 2. Document & Element State
   const [elements, setElements] = useState([])
+  const elementsRef = useRef([])
+  const deletedIdsRef = useRef(new Set())
   const historyRef = useRef(createHistory([]))
+
+  // Keep elementsRef immediately in sync with state
+  useEffect(() => {
+    elementsRef.current = elements
+  }, [elements])
 
   // 3. Viewport & Tool State (Starts at 0,0 for 100% exact pixel match with mouse cursor)
   const [viewport, setViewport] = useState({
@@ -103,7 +110,69 @@ export default function BoardWorkspace({ roomId }) {
     }
   }, [roomId])
 
-  // 8. Collaboration Hook (Supabase Realtime)
+  // Collaboration callbacks: Multi-laptop delta element synchronization
+  const handleRemoteElementsChange = useCallback(
+    (remoteElements, action = 'upsert') => {
+      if (!Array.isArray(remoteElements)) return
+
+      if (action === 'sync') {
+        // Complete handshake sync from host/peer
+        const filtered = remoteElements.filter((el) => !deletedIdsRef.current.has(el.id))
+        elementsRef.current = filtered
+        setElements(filtered)
+        historyRef.current = createHistory(filtered)
+        saveBoard(filtered)
+        return
+      }
+
+      // Upsert / delta merge: preserve all unique elements by ID
+      setElements((prev) => {
+        const currentList = elementsRef.current.length > 0 ? elementsRef.current : prev
+        const map = new Map(currentList.map((el) => [el.id, el]))
+        for (const el of remoteElements) {
+          if (!deletedIdsRef.current.has(el.id)) {
+            map.set(el.id, el)
+          }
+        }
+        const merged = Array.from(map.values())
+        elementsRef.current = merged
+        historyRef.current.push(merged)
+        saveBoard(merged)
+        return merged
+      })
+    },
+    [saveBoard]
+  )
+
+  const handleRemoteElementsDelete = useCallback(
+    (elementIds) => {
+      if (!Array.isArray(elementIds) || elementIds.length === 0) return
+      for (const id of elementIds) {
+        deletedIdsRef.current.add(id)
+      }
+      setElements((prev) => {
+        const currentList = elementsRef.current.length > 0 ? elementsRef.current : prev
+        const updated = currentList.filter((el) => !elementIds.includes(el.id))
+        elementsRef.current = updated
+        historyRef.current.push(updated)
+        saveBoard(updated)
+        return updated
+      })
+      setSelectedElement((sel) => (sel && elementIds.includes(sel.id) ? null : sel))
+    },
+    [saveBoard]
+  )
+
+  const handleRemoteElementsClear = useCallback(() => {
+    elementsRef.current = []
+    setElements([])
+    historyRef.current.push([])
+    saveBoard([])
+    setSelectedElement(null)
+    toast('Canvas was cleared by collaborator 🎨', { id: 'canvas-cleared' })
+  }, [saveBoard])
+
+  // 8. Collaboration Hook (Resilient WebSocket Multiplayer Engine)
   const {
     currentUser,
     collaborators,
@@ -111,6 +180,8 @@ export default function BoardWorkspace({ roomId }) {
     broadcastCursor,
     broadcastDrawPreview,
     broadcastElementsUpdate,
+    broadcastElementDelete,
+    broadcastCanvasClear,
     broadcastReaction,
     broadcastPresenterView,
     broadcastChatMessage,
@@ -120,11 +191,9 @@ export default function BoardWorkspace({ roomId }) {
     isHost,
     currentElements: elements,
     boardTitle: boardTitle,
-    onRemoteElementsChange: (remoteElements) => {
-      setElements(remoteElements)
-      historyRef.current.push(remoteElements)
-      saveBoard(remoteElements)
-    },
+    onRemoteElementsChange: handleRemoteElementsChange,
+    onRemoteElementsDelete: handleRemoteElementsDelete,
+    onRemoteElementsClear: handleRemoteElementsClear,
     onRemoteTitleChange: (newTitle) => {
       setBoardTitle(newTitle)
     },
@@ -266,6 +335,7 @@ export default function BoardWorkspace({ roomId }) {
   useEffect(() => {
     loadBoard().then((loaded) => {
       if (loaded && loaded.length > 0) {
+        elementsRef.current = loaded
         setElements(loaded)
         historyRef.current = createHistory(loaded)
       }
@@ -320,32 +390,35 @@ export default function BoardWorkspace({ roomId }) {
   // Commit element changes (Pushes to History + Saves to DB + Broadcasts to Peers)
   const handleElementsChange = useCallback(
     (newElements) => {
+      elementsRef.current = newElements
       setElements(newElements)
       historyRef.current.push(newElements)
       saveBoard(newElements)
-      broadcastElementsUpdate(newElements)
+      broadcastElementsUpdate(newElements, 'upsert')
     },
     [saveBoard, broadcastElementsUpdate]
   )
 
   // Undo
   const handleUndo = useCallback(() => {
-    const prev = historyRef.current.undo(elements)
+    const prev = historyRef.current.undo(elementsRef.current.length > 0 ? elementsRef.current : elements)
     if (prev) {
+      elementsRef.current = prev
       setElements(prev)
       saveBoard(prev)
-      broadcastElementsUpdate(prev)
+      broadcastElementsUpdate(prev, 'upsert')
       setSelectedElement(null)
     }
   }, [elements, saveBoard, broadcastElementsUpdate])
 
   // Redo
   const handleRedo = useCallback(() => {
-    const next = historyRef.current.redo(elements)
+    const next = historyRef.current.redo(elementsRef.current.length > 0 ? elementsRef.current : elements)
     if (next) {
+      elementsRef.current = next
       setElements(next)
       saveBoard(next)
-      broadcastElementsUpdate(next)
+      broadcastElementsUpdate(next, 'upsert')
       setSelectedElement(null)
     }
   }, [elements, saveBoard, broadcastElementsUpdate])
@@ -353,21 +426,50 @@ export default function BoardWorkspace({ roomId }) {
   // Delete selected element
   const handleDeleteSelected = useCallback(() => {
     if (!selectedElement) return
-    const updated = elements.filter((el) => el.id !== selectedElement.id)
-    handleElementsChange(updated)
+    const idToDelete = selectedElement.id
+    deletedIdsRef.current.add(idToDelete)
+    setElements((prev) => {
+      const currentList = elementsRef.current.length > 0 ? elementsRef.current : prev
+      const updated = currentList.filter((el) => el.id !== idToDelete)
+      elementsRef.current = updated
+      historyRef.current.push(updated)
+      saveBoard(updated)
+      return updated
+    })
+    broadcastElementDelete(idToDelete)
     setSelectedElement(null)
-  }, [selectedElement, elements, handleElementsChange])
+  }, [selectedElement, broadcastElementDelete, saveBoard])
+
+  // Delete specific element (called by eraser or context)
+  const handleDeleteElement = useCallback(
+    (elementId) => {
+      if (!elementId) return
+      deletedIdsRef.current.add(elementId)
+      setElements((prev) => {
+        const currentList = elementsRef.current.length > 0 ? elementsRef.current : prev
+        const updated = currentList.filter((el) => el.id !== elementId)
+        elementsRef.current = updated
+        historyRef.current.push(updated)
+        saveBoard(updated)
+        return updated
+      })
+      broadcastElementDelete(elementId)
+      setSelectedElement((sel) => (sel && sel.id === elementId ? null : sel))
+    },
+    [broadcastElementDelete, saveBoard]
+  )
 
   // Clear Canvas (wipes whole board for fresh Paint session)
   const handleClearCanvas = useCallback(() => {
-    if (elements.length === 0) return
+    if (elementsRef.current.length === 0 && elements.length === 0) return
+    elementsRef.current = []
     setElements([])
     historyRef.current.push([])
     saveBoard([])
-    broadcastElementsUpdate([])
+    broadcastCanvasClear()
     setSelectedElement(null)
     toast.success('Canvas cleared! 🎨')
-  }, [elements, saveBoard, broadcastElementsUpdate])
+  }, [elements, saveBoard, broadcastCanvasClear])
 
   // Upload & Insert Image
   const handleUploadImage = useCallback(
@@ -399,7 +501,8 @@ export default function BoardWorkspace({ roomId }) {
           aspectRatio,
         }
 
-        handleElementsChange([...elements, newImage])
+        const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+        handleElementsChange([...currentList, newImage])
         setSelectedElement(newImage)
         setActiveTool('select')
         toast.success('Image added to board! 🖼️')
@@ -415,7 +518,8 @@ export default function BoardWorkspace({ roomId }) {
   const handleInsertAiElements = useCallback(
     (newElements) => {
       if (!newElements || newElements.length === 0) return
-      const updated = [...elements, ...newElements]
+      const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+      const updated = [...currentList, ...newElements]
       handleElementsChange(updated)
       setSelectedElement(newElements[0] || null)
     },
@@ -582,7 +686,8 @@ export default function BoardWorkspace({ roomId }) {
         onChangeColor={(c) => {
           setCurrentColor(c)
           if (selectedElement) {
-            const updated = elements.map((el) =>
+            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+            const updated = currentList.map((el) =>
               el.id === selectedElement.id ? { ...el, color: c } : el
             )
             handleElementsChange(updated)
@@ -593,7 +698,8 @@ export default function BoardWorkspace({ roomId }) {
         onChangeFillColor={(fill) => {
           setCurrentFillColor(fill)
           if (selectedElement) {
-            const updated = elements.map((el) =>
+            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+            const updated = currentList.map((el) =>
               el.id === selectedElement.id ? { ...el, fillColor: fill } : el
             )
             handleElementsChange(updated)
@@ -604,7 +710,8 @@ export default function BoardWorkspace({ roomId }) {
         onChangeStrokeWidth={(w) => {
           setCurrentStrokeWidth(w)
           if (selectedElement) {
-            const updated = elements.map((el) =>
+            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+            const updated = currentList.map((el) =>
               el.id === selectedElement.id ? { ...el, strokeWidth: w } : el
             )
             handleElementsChange(updated)
@@ -633,7 +740,8 @@ export default function BoardWorkspace({ roomId }) {
         onChangeColor={(c) => {
           setCurrentColor(c)
           if (selectedElement) {
-            const updated = elements.map((el) =>
+            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+            const updated = currentList.map((el) =>
               el.id === selectedElement.id ? { ...el, color: c } : el
             )
             handleElementsChange(updated)
@@ -643,7 +751,8 @@ export default function BoardWorkspace({ roomId }) {
         onChangeStrokeWidth={(w) => {
           setCurrentStrokeWidth(w)
           if (selectedElement) {
-            const updated = elements.map((el) =>
+            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+            const updated = currentList.map((el) =>
               el.id === selectedElement.id ? { ...el, strokeWidth: w } : el
             )
             handleElementsChange(updated)
@@ -653,7 +762,8 @@ export default function BoardWorkspace({ roomId }) {
         onChangeFillColor={(fill) => {
           setCurrentFillColor(fill)
           if (selectedElement) {
-            const updated = elements.map((el) =>
+            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+            const updated = currentList.map((el) =>
               el.id === selectedElement.id ? { ...el, fillColor: fill } : el
             )
             handleElementsChange(updated)
@@ -663,7 +773,8 @@ export default function BoardWorkspace({ roomId }) {
         onChangeStickyColor={(sc) => {
           setCurrentStickyColor(sc)
           if (selectedElement && selectedElement.type === 'sticky') {
-            const updated = elements.map((el) =>
+            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+            const updated = currentList.map((el) =>
               el.id === selectedElement.id ? { ...el, bgColor: sc } : el
             )
             handleElementsChange(updated)
@@ -673,7 +784,8 @@ export default function BoardWorkspace({ roomId }) {
         onChangeFontSize={(fs) => {
           setCurrentFontSize(fs)
           if (selectedElement && selectedElement.type === 'text') {
-            const updated = elements.map((el) =>
+            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+            const updated = currentList.map((el) =>
               el.id === selectedElement.id ? { ...el, fontSize: fs } : el
             )
             handleElementsChange(updated)
@@ -690,6 +802,7 @@ export default function BoardWorkspace({ roomId }) {
       <Canvas
         elements={elements}
         onElementsChange={handleElementsChange}
+        onDeleteElement={handleDeleteElement}
         activeTool={activeTool}
         onSelectTool={setActiveTool}
         currentColor={currentColor}
