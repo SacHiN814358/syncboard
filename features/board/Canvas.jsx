@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { generateId } from '@/lib/utils'
+import { generateId, processImageFile } from '@/lib/utils'
 import {
   screenToWorld,
   worldToScreen,
@@ -84,6 +84,55 @@ export default function Canvas({
 
   // Needs repaint flag for requestAnimationFrame
   const needsRepaintRef = useRef(true)
+  const lastPointerWorldPosRef = useRef({ x: 0, y: 0 })
+
+  // Process & insert image onto board
+  const handleProcessAndInsertImage = useCallback(
+    async (file, targetWorldX, targetWorldY) => {
+      try {
+        const { src, width, height, aspectRatio } = await processImageFile(file, 1200)
+
+        const maxDisplayW = 420
+        let displayW = width
+        let displayH = height
+        if (displayW > maxDisplayW) {
+          displayH = Math.round((displayH * maxDisplayW) / displayW)
+          displayW = maxDisplayW
+        }
+
+        const fallbackX =
+          (-viewport.panX + (typeof window !== 'undefined' ? window.innerWidth : 1200) / 2) /
+            viewport.zoom -
+          displayW / 2
+        const fallbackY =
+          (-viewport.panY + (typeof window !== 'undefined' ? window.innerHeight : 800) / 2) /
+            viewport.zoom -
+          displayH / 2
+
+        const wx = targetWorldX != null ? targetWorldX - displayW / 2 : fallbackX
+        const wy = targetWorldY != null ? targetWorldY - displayH / 2 : fallbackY
+
+        const newImage = {
+          id: generateId(),
+          type: 'image',
+          x: Math.round(wx),
+          y: Math.round(wy),
+          width: displayW,
+          height: displayH,
+          src,
+          aspectRatio,
+        }
+
+        onElementsChange([...elements, newImage])
+        onSelectElement(newImage)
+        onSelectTool?.('select')
+        needsRepaintRef.current = true
+      } catch (err) {
+        console.error('Error inserting image:', err)
+      }
+    },
+    [elements, viewport, onElementsChange, onSelectElement, onSelectTool]
+  )
 
   // 1. requestAnimationFrame Render Loop
   useEffect(() => {
@@ -193,6 +242,33 @@ export default function Canvas({
       window.removeEventListener('keyup', handleKeyUp)
     }
   }, [activeTool])
+
+  // Clipboard Paste Handler (Ctrl+V Image Paste onto Canvas)
+  useEffect(() => {
+    const handlePaste = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+          const file = item.getAsFile()
+          if (file) {
+            handleProcessAndInsertImage(
+              file,
+              lastPointerWorldPosRef.current.x,
+              lastPointerWorldPosRef.current.y
+            )
+          }
+          break
+        }
+      }
+    }
+
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [handleProcessAndInsertImage])
 
   // 4. Mouse Wheel Zoom (Centered on cursor)
   const handleWheel = useCallback(
@@ -350,6 +426,8 @@ export default function Canvas({
         id: newSticky.id,
         x: newSticky.x,
         y: newSticky.y,
+        width: newSticky.width,
+        height: newSticky.height,
         text: '',
         type: 'sticky',
       })
@@ -431,6 +509,7 @@ export default function Canvas({
     const screenX = e.clientX - rect.left
     const screenY = e.clientY - rect.top
     const world = screenToWorld(screenX, screenY, viewport)
+    lastPointerWorldPosRef.current = { x: world.x, y: world.y }
 
     // Broadcast cursor position for remote peers
     onCursorMove?.(world.x, world.y)
@@ -522,13 +601,20 @@ export default function Canvas({
 
       let updatedEl = { ...initialElement }
 
-      if (BOX_SHAPES.includes(initialElement.type) || initialElement.type === 'sticky') {
+      if (BOX_SHAPES.includes(initialElement.type) || initialElement.type === 'sticky' || initialElement.type === 'image') {
+        let w = newW
+        let h = newH
+        if (initialElement.type === 'image' && initialElement.aspectRatio) {
+          if (['nw', 'ne', 'sw', 'se'].includes(resizeHandleRef.current)) {
+            h = Math.round(w / initialElement.aspectRatio)
+          }
+        }
         updatedEl = {
           ...initialElement,
           x: newX,
           y: newY,
-          width: newW,
-          height: newH,
+          width: w,
+          height: h,
         }
       } else if (initialElement.type === 'circle') {
         updatedEl = {
@@ -710,6 +796,8 @@ export default function Canvas({
           id: hit.id,
           x: hit.x,
           y: hit.y,
+          width: hit.width,
+          height: hit.height,
           text: hit.text || '',
           type: hit.type,
         })
@@ -759,7 +847,28 @@ export default function Canvas({
   }
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-white select-none">
+    <div
+      className="relative w-full h-full overflow-hidden bg-white select-none"
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        const rect = canvasRef.current.getBoundingClientRect()
+        const screenX = e.clientX - rect.left
+        const screenY = e.clientY - rect.top
+        const world = screenToWorld(screenX, screenY, viewport)
+        const files = e.dataTransfer?.files
+        if (files && files.length > 0) {
+          for (let i = 0; i < files.length; i++) {
+            if (files[i].type.startsWith('image/')) {
+              handleProcessAndInsertImage(files[i], world.x + i * 24, world.y + i * 24)
+            }
+          }
+        }
+      }}
+    >
       <canvas
         ref={canvasRef}
         onPointerDown={handlePointerDown}
@@ -811,7 +920,11 @@ export default function Canvas({
               onKeyDown={(e) => {
                 if (e.key === 'Escape') setEditingText(null)
               }}
-              className="p-3 w-[200px] h-[140px] bg-transparent text-[#1e1e1e] border-none outline-none resize-none font-sans text-sm rounded"
+              style={{
+                width: `${editingText.width || 200}px`,
+                height: `${editingText.height || 140}px`,
+              }}
+              className="p-3.5 pt-6 bg-transparent text-[#1e293b] border-none outline-none resize-none font-sans text-sm rounded leading-relaxed"
               placeholder="Write a note..."
             />
           )}

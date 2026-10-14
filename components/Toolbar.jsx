@@ -30,6 +30,7 @@ import {
   MessageCircle,
   Type,
   StickyNote,
+  ImagePlus,
   Eraser,
   Undo2,
   Redo2,
@@ -192,6 +193,7 @@ export default function Toolbar({
   onClearCanvas,
   reactionsOpen = false,
   onToggleReactions,
+  onUploadImage,
 }) {
   const [activeColorSlot, setActiveColorSlot] = useState('stroke') // 'stroke' | 'fill'
   const isCustomColor = !COLORS.includes(
@@ -201,6 +203,7 @@ export default function Toolbar({
   const [shapesOpen, setShapesOpen] = useState(false)
   const [selectedShapeId, setSelectedShapeId] = useState('rectangle')
   const shapesDropdownRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   // Track if activeTool is one of the shapes
   const isShapeActive = SHAPES_LIST.some((s) => s.id === activeTool)
@@ -546,6 +549,33 @@ export default function Toolbar({
               </button>
             )
           })}
+
+          {/* Insert Image Tool */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="Upload Image (or Ctrl+V to paste)"
+            aria-label="Upload Image"
+            className="toolbar-btn group relative"
+          >
+            <ImagePlus className="w-4 h-4" />
+            <span className="hidden group-hover:flex tooltip-enter absolute -bottom-9 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-[#212529] text-white text-[11px] font-medium whitespace-nowrap shadow-md pointer-events-none z-50 items-center gap-1">
+              <span>Insert Image</span>
+              <span className="text-[#adb5bd] text-[10px]">(Ctrl+V)</span>
+            </span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  onUploadImage?.(file)
+                  e.target.value = ''
+                }
+              }}
+            />
+          </button>
         </div>
 
         <div className="toolbar-divider" />

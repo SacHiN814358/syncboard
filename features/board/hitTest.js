@@ -14,7 +14,7 @@ import { BOX_SHAPES, LINE_SHAPES } from './elements'
  * @returns {{x: number, y: number, width: number, height: number} | null}
  */
 export function getElementBounds(el) {
-  if (BOX_SHAPES.includes(el.type) || el.type === 'sticky') {
+  if (BOX_SHAPES.includes(el.type) || el.type === 'sticky' || el.type === 'image') {
     return { x: el.x, y: el.y, width: el.width, height: el.height }
   }
 
@@ -82,7 +82,7 @@ export function getElementBounds(el) {
  * @returns {boolean}
  */
 export function hitTestElement(wx, wy, el, tolerance = 8) {
-  if (BOX_SHAPES.includes(el.type) || el.type === 'sticky') {
+  if (BOX_SHAPES.includes(el.type) || el.type === 'sticky' || el.type === 'image') {
     return hitTestRect(wx, wy, el, tolerance)
   }
 

@@ -191,20 +191,23 @@ export function drawText(ctx, el) {
   }
 }
 
+// In-memory cache for loaded images so canvas redraws are instant and flicker-free
+const imageCache = new Map()
+
 /**
  * Draw a sticky note.
  * @param {CanvasRenderingContext2D} ctx
  * @param {import('./elements').StickyElement} el
  */
 export function drawSticky(ctx, el) {
-  const r = 4
+  const r = 6
 
   // Shadow
   ctx.save()
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.08)'
-  ctx.shadowBlur = 8
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.12)'
+  ctx.shadowBlur = 10
   ctx.shadowOffsetX = 0
-  ctx.shadowOffsetY = 2
+  ctx.shadowOffsetY = 4
 
   // Background
   ctx.fillStyle = el.bgColor || '#fff3bf'
@@ -213,29 +216,106 @@ export function drawSticky(ctx, el) {
   ctx.fill()
   ctx.restore()
 
-  // Border
+  // Top adhesive header strip (gives realistic Post-it depth)
+  ctx.save()
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.04)'
+  ctx.beginPath()
+  ctx.roundRect(el.x, el.y, el.width, Math.min(22, el.height * 0.18), [r, r, 0, 0])
+  ctx.fill()
+  ctx.restore()
+
+  // Subtle border
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)'
   ctx.lineWidth = 1
   ctx.beginPath()
   ctx.roundRect(el.x, el.y, el.width, el.height, r)
   ctx.stroke()
 
+  // Corner fold at bottom right for authenticity
+  const foldSize = Math.min(14, el.width * 0.1, el.height * 0.1)
+  if (foldSize > 6) {
+    ctx.save()
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.06)'
+    ctx.beginPath()
+    ctx.moveTo(el.x + el.width - foldSize, el.y + el.height)
+    ctx.lineTo(el.x + el.width, el.y + el.height - foldSize)
+    ctx.lineTo(el.x + el.width, el.y + el.height)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+
   // Text
   if (el.text) {
-    ctx.fillStyle = '#1e1e1e'
-    ctx.font = '14px Inter, system-ui, -apple-system, sans-serif'
+    const fontSize = el.fontSize || 15
+    ctx.fillStyle = el.textColor || '#1e293b'
+    ctx.font = `${fontSize}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
     ctx.textBaseline = 'top'
 
-    const padding = 12
+    const padding = 14
+    const topPadding = 26
     const maxWidth = el.width - padding * 2
     const lines = wrapText(ctx, el.text, maxWidth)
-    const lineHeight = 18
+    const lineHeight = fontSize * 1.35
 
     for (let i = 0; i < lines.length; i++) {
-      const textY = el.y + padding + i * lineHeight
+      const textY = el.y + topPadding + i * lineHeight
       if (textY + lineHeight > el.y + el.height - padding) break
       ctx.fillText(lines[i], el.x + padding, textY)
     }
+  }
+}
+
+/**
+ * Draw an image element on canvas.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {import('./elements').ImageElement} el
+ */
+export function drawImageElement(ctx, el) {
+  if (!el.src) return
+
+  let img = imageCache.get(el.src)
+  if (!img) {
+    img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.src = el.src
+    imageCache.set(el.src, img)
+  }
+
+  const r = 6 // slight rounded corner
+
+  if (img.complete && img.naturalWidth > 0) {
+    ctx.save()
+    // Clip to rounded rectangle
+    ctx.beginPath()
+    ctx.roundRect(el.x, el.y, el.width, el.height, r)
+    ctx.clip()
+    ctx.drawImage(img, el.x, el.y, el.width, el.height)
+    ctx.restore()
+
+    // Subtle crisp border
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.roundRect(el.x, el.y, el.width, el.height, r)
+    ctx.stroke()
+  } else {
+    // Placeholder while image is downloading or rendering
+    ctx.save()
+    ctx.fillStyle = '#f8fafc'
+    ctx.strokeStyle = '#cbd5e1'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.roundRect(el.x, el.y, el.width, el.height, r)
+    ctx.fill()
+    ctx.stroke()
+
+    ctx.fillStyle = '#94a3b8'
+    ctx.font = '12px Inter, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('🖼️ Loading image...', el.x + el.width / 2, el.y + el.height / 2)
+    ctx.restore()
   }
 }
 
@@ -976,6 +1056,9 @@ export function drawElement(ctx, el) {
       break
     case 'sticky':
       drawSticky(ctx, el)
+      break
+    case 'image':
+      drawImageElement(ctx, el)
       break
   }
   ctx.restore()

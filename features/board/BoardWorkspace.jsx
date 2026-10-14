@@ -6,7 +6,7 @@ import { Toaster, toast } from 'react-hot-toast'
 import { UserX } from 'lucide-react'
 import { createHistory } from './history'
 import { DEFAULT_VIEWPORT } from './elements'
-import { generateRoomCode } from '@/lib/utils'
+import { generateId, generateRoomCode, processImageFile } from '@/lib/utils'
 import { useCollaboration } from '@/features/collaboration/useCollaboration'
 import { useBoardStorage } from '@/features/persistence/useBoardStorage'
 import TopNav from '@/components/TopNav'
@@ -245,6 +245,48 @@ export default function BoardWorkspace({ roomId }) {
     toast.success('Canvas cleared! 🎨')
   }, [elements, saveBoard, broadcastElementsUpdate])
 
+  // Upload & Insert Image
+  const handleUploadImage = useCallback(
+    async (file) => {
+      try {
+        const { src, width, height, aspectRatio } = await processImageFile(file, 1200)
+
+        const maxDisplayW = 420
+        let displayW = width
+        let displayH = height
+        if (displayW > maxDisplayW) {
+          displayH = Math.round((displayH * maxDisplayW) / displayW)
+          displayW = maxDisplayW
+        }
+
+        const screenW = typeof window !== 'undefined' ? window.innerWidth : 1200
+        const screenH = typeof window !== 'undefined' ? window.innerHeight : 800
+        const wx = (-viewport.panX + screenW / 2) / viewport.zoom - displayW / 2
+        const wy = (-viewport.panY + screenH / 2) / viewport.zoom - displayH / 2
+
+        const newImage = {
+          id: generateId(),
+          type: 'image',
+          x: Math.round(wx),
+          y: Math.round(wy),
+          width: displayW,
+          height: displayH,
+          src,
+          aspectRatio,
+        }
+
+        handleElementsChange([...elements, newImage])
+        setSelectedElement(newImage)
+        setActiveTool('select')
+        toast.success('Image added to board! 🖼️')
+      } catch (err) {
+        console.error('Failed to upload image:', err)
+        toast.error('Failed to load image')
+      }
+    },
+    [elements, viewport, handleElementsChange]
+  )
+
   // Keyboard Shortcuts Listener
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -434,6 +476,7 @@ export default function BoardWorkspace({ roomId }) {
         onClearCanvas={handleClearCanvas}
         reactionsOpen={reactionsPickerOpen}
         onToggleReactions={() => setReactionsPickerOpen((prev) => !prev)}
+        onUploadImage={handleUploadImage}
       />
 
       {/* 3. Contextual Properties Panel */}

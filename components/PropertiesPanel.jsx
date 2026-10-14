@@ -53,6 +53,7 @@ export default function PropertiesPanel({
 }) {
   const isSticky = activeTool === 'sticky' || selectedElement?.type === 'sticky'
   const isText = activeTool === 'text' || selectedElement?.type === 'text'
+  const isImage = selectedElement?.type === 'image'
 
   const hasStroke =
     CLOSED_SHAPES.includes(activeTool) ||
@@ -76,7 +77,7 @@ export default function PropertiesPanel({
     <div className="fixed top-20 left-6 z-30">
       <div className="w-56 p-3 rounded-xl bg-white/95 backdrop-blur-md border border-[#e9ecef] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] space-y-3 select-none text-xs">
         {/* Stroke / Text Color */}
-        {!isSticky && (
+        {!isSticky && !isImage && (
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[11px] font-semibold text-[#868e96] uppercase tracking-wider">
@@ -299,6 +300,35 @@ export default function PropertiesPanel({
                   </button>
                 )
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Image Actions */}
+        {isImage && selectedElement && (
+          <div>
+            <div className="text-[11px] font-semibold text-[#868e96] mb-1.5 uppercase tracking-wider">
+              Image Info
+            </div>
+            <div className="text-[11px] text-[#495057] bg-[#f8f9fa] p-2.5 rounded-lg border border-[#e9ecef] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[#868e96]">Size</span>
+                <span className="font-mono text-[#212529]">
+                  {Math.round(selectedElement.width)} × {Math.round(selectedElement.height)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const a = document.createElement('a')
+                  a.href = selectedElement.src
+                  a.download = `syncboard-image-${selectedElement.id}.png`
+                  a.click()
+                }}
+                className="w-full mt-1 py-1 px-2 text-center rounded bg-white hover:bg-[#f1f3f5] border border-[#dee2e6] text-[#1971c2] font-medium transition-colors cursor-pointer"
+              >
+                📥 Download Image
+              </button>
             </div>
           </div>
         )}

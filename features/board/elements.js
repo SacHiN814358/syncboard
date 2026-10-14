@@ -126,7 +126,19 @@ export const CLOSED_SHAPES = [...BOX_SHAPES, 'circle']
  */
 
 /**
- * @typedef {PenElement | RectangleElement | CircleElement | LineElement | ArrowElement | TextElement | StickyElement} CanvasElement
+ * @typedef {Object} ImageElement
+ * @property {string} id
+ * @property {'image'} type
+ * @property {number} x
+ * @property {number} y
+ * @property {number} width
+ * @property {number} height
+ * @property {string} src
+ * @property {number} [aspectRatio]
+ */
+
+/**
+ * @typedef {PenElement | RectangleElement | CircleElement | LineElement | ArrowElement | TextElement | StickyElement | ImageElement} CanvasElement
  */
 
 /**
