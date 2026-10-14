@@ -184,25 +184,6 @@ export default function BoardWorkspace({ roomId }) {
     toast('Canvas was cleared by collaborator 🎨', { id: 'canvas-cleared' })
   }, [saveBoard])
 
-  // Automatically purge any stale remote previews older than 2s so they never freeze on screen
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setRemotePreviews((prev) => {
-        const now = Date.now()
-        let changed = false
-        const next = { ...prev }
-        for (const uid in next) {
-          if (next[uid]?._receivedAt && now - next[uid]._receivedAt > 2000) {
-            delete next[uid]
-            changed = true
-          }
-        }
-        return changed ? next : prev
-      })
-    }, 1500)
-    return () => clearInterval(timer)
-  }, [])
-
   // 8. Collaboration Hook (Resilient WebSocket Multiplayer Engine)
   const {
     currentUser,
@@ -235,13 +216,7 @@ export default function BoardWorkspace({ roomId }) {
           delete next[previewData.userId]
           return next
         }
-        return {
-          ...prev,
-          [previewData.userId]: {
-            ...previewData.element,
-            _receivedAt: Date.now(),
-          },
-        }
+        return { ...prev, [previewData.userId]: previewData.element }
       })
     },
     onReaction: (rx) => {
