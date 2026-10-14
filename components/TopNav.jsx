@@ -12,6 +12,7 @@ import {
   Copy,
   Check,
   Sparkles,
+  Radio,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -49,6 +50,10 @@ export default function TopNav({
   onOpenJoinCode,
   onNewBoard,
   onOpenAiDiagram,
+  isPresenter = false,
+  onTogglePresenter,
+  followingUser = null,
+  onStopFollowing,
   isHost = false,
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
@@ -75,7 +80,8 @@ export default function TopNav({
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-13 px-3 sm:px-4 z-40 bg-white/95 backdrop-blur-md border-b border-[#e9ecef] flex items-center justify-between gap-2 sm:gap-3 select-none">
+    <>
+      <header className="fixed top-0 left-0 right-0 h-13 px-3 sm:px-4 z-40 bg-white/95 backdrop-blur-md border-b border-[#e9ecef] flex items-center justify-between gap-2 sm:gap-3 select-none">
       {/* Left: Brand + Code Badge + Title */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {/* Brand Home Link */}
@@ -190,6 +196,24 @@ export default function TopNav({
           <span className="hidden sm:inline">Join Code</span>
         </button>
 
+        {/* Presenter / Follow Me Button */}
+        <button
+          onClick={onTogglePresenter}
+          title={
+            isPresenter
+              ? 'Click to stop broadcasting your view'
+              : 'Broadcast your view to all collaborators (Follow Me)'
+          }
+          className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+            isPresenter
+              ? 'bg-rose-500 hover:bg-rose-600 text-white animate-pulse'
+              : 'border border-[#dee2e6] hover:bg-[#f8f9fa] text-[#495057]'
+          }`}
+        >
+          <Radio className={`w-3.5 h-3.5 ${isPresenter ? 'text-white' : 'text-rose-500'}`} />
+          <span className="hidden sm:inline">{isPresenter ? 'Broadcasting' : 'Present'}</span>
+        </button>
+
         {/* Invite / Share Button */}
         <button
           onClick={onOpenInvite}
@@ -260,5 +284,20 @@ export default function TopNav({
         </button>
       </div>
     </header>
+
+    {/* Following Presenter Live Banner */}
+    {followingUser && (
+      <div className="fixed top-15 left-1/2 -translate-x-1/2 z-40 px-3.5 py-1.5 rounded-full bg-[#212529]/95 backdrop-blur-md text-white text-xs font-medium shadow-lg flex items-center gap-2 animate-in slide-in-from-top-2 border border-white/10 select-none">
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span>Following <strong className="text-emerald-300">{followingUser.name}</strong>&apos;s view</span>
+        <button
+          onClick={onStopFollowing}
+          className="ml-1.5 px-2 py-0.5 rounded-full bg-white/20 hover:bg-white/30 text-[10px] font-semibold transition-colors cursor-pointer"
+        >
+          Stop
+        </button>
+      </div>
+    )}
+  </>
   )
 }

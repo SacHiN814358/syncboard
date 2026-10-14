@@ -18,6 +18,7 @@ import SqlHelpModal from '@/components/SqlHelpModal'
 import InviteModal from '@/components/InviteModal'
 import JoinCodeModal from '@/components/JoinCodeModal'
 import AiDiagramModal from '@/components/AiDiagramModal'
+import ChatDrawer from '@/components/ChatDrawer'
 import ReactionOverlay from '@/components/ReactionOverlay'
 import ReactionPicker, { EMOJI_LIST } from '@/components/ReactionPicker'
 import { screenToWorld } from './viewport'
@@ -75,6 +76,13 @@ export default function BoardWorkspace({ roomId }) {
   const [reactionsPickerOpen, setReactionsPickerOpen] = useState(false)
   const lastCursorRef = useRef({ x: 400, y: 300 })
 
+  // 7. Follow Presenter & Realtime Chat State
+  const [isPresenter, setIsPresenter] = useState(false)
+  const [followingUser, setFollowingUser] = useState(null)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [messages, setMessages] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
+
   // Track pointer world position for spawning reactions right at user's cursor
   useEffect(() => {
     const onMove = (e) => {
@@ -94,7 +102,7 @@ export default function BoardWorkspace({ roomId }) {
     }
   }, [roomId])
 
-  // 7. Collaboration Hook (Supabase Realtime)
+  // 8. Collaboration Hook (Supabase Realtime)
   const {
     currentUser,
     collaborators,
@@ -103,6 +111,8 @@ export default function BoardWorkspace({ roomId }) {
     broadcastDrawPreview,
     broadcastElementsUpdate,
     broadcastReaction,
+    broadcastPresenterView,
+    broadcastChatMessage,
     isKicked,
     kickCollaborator,
   } = useCollaboration(roomId, {
@@ -129,7 +139,89 @@ export default function BoardWorkspace({ roomId }) {
         setReactions((prev) => prev.filter((r) => r.id !== rx.id))
       }, 2400)
     },
+    onPresenterUpdate: (payload) => {
+      setFollowingUser((prev) => {
+        if (!prev) {
+          toast(
+            (t) => (
+              <div className="flex items-center gap-2">
+                <span>🎥 <b>{payload.name}</b> is presenting!</span>
+                <button
+                  onClick={() => {
+                    setFollowingUser({ id: payload.userId, name: payload.name })
+                    setViewport(payload.viewport)
+                    toast.dismiss(t.id)
+                  }}
+                  className="px-2 py-0.5 bg-[#1971c2] hover:bg-[#1864ab] text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
+                >
+                  Follow
+                </button>
+              </div>
+            ),
+            { id: `presenter-${payload.userId}`, duration: 5000 }
+          )
+          return null
+        }
+        if (prev.id === payload.userId) {
+          setViewport(payload.viewport)
+          return prev
+        }
+        return prev
+      })
+    },
+    onChatMessage: (msg) => {
+      setMessages((prev) => [...prev, msg])
+      setChatOpen((isOpen) => {
+        if (!isOpen && msg.senderId !== currentUser?.id) {
+          setUnreadCount((c) => c + 1)
+          toast(`💬 ${msg.senderName}: ${msg.text.slice(0, 30)}...`, {
+            id: 'chat-toast',
+            duration: 2500,
+          })
+        }
+        return isOpen
+      })
+    },
   })
+
+  // Broadcast viewport changes when in Presenter mode
+  useEffect(() => {
+    if (isPresenter) {
+      broadcastPresenterView(viewport)
+    }
+  }, [isPresenter, viewport, broadcastPresenterView])
+
+  // Toggle presenter mode
+  const handleTogglePresenter = useCallback(() => {
+    setIsPresenter((prev) => {
+      const next = !prev
+      if (next) {
+        setFollowingUser(null)
+        toast.success('You are now presenting! Collaborators can follow your view 🎥')
+        broadcastPresenterView(viewport)
+      } else {
+        toast('Stopped presenting view')
+      }
+      return next
+    })
+  }, [viewport, broadcastPresenterView])
+
+  // Toggle Chat drawer and clear unread count
+  const handleToggleChat = useCallback(() => {
+    setChatOpen((prev) => {
+      const next = !prev
+      if (next) setUnreadCount(0)
+      return next
+    })
+  }, [])
+
+  // Send Chat message
+  const handleSendMessage = useCallback(
+    (text) => {
+      broadcastChatMessage(text)
+    },
+    [broadcastChatMessage]
+  )
 
   // Trigger emoji reaction broadcast
   const handleSendReaction = useCallback(
@@ -440,6 +532,10 @@ export default function BoardWorkspace({ roomId }) {
         onOpenJoinCode={() => setJoinCodeModalOpen(true)}
         onOpenAiDiagram={() => setAiDiagramModalOpen(true)}
         onNewBoard={handleNewBoard}
+        isPresenter={isPresenter}
+        onTogglePresenter={handleTogglePresenter}
+        followingUser={followingUser}
+        onStopFollowing={() => setFollowingUser(null)}
         isHost={isHost}
       />
 
@@ -622,6 +718,16 @@ export default function BoardWorkspace({ roomId }) {
         onClose={() => setAiDiagramModalOpen(false)}
         onInsertElements={handleInsertAiElements}
         viewport={viewport}
+      />
+
+      {/* 9. Live In-App Chat Drawer */}
+      <ChatDrawer
+        isOpen={chatOpen}
+        onToggle={handleToggleChat}
+        messages={messages}
+        onSendMessage={handleSendMessage}
+        currentUser={currentUser}
+        unreadCount={unreadCount}
       />
 
       {/* 7. Kicked Out Overlay for Removed User */}

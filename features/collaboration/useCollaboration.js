@@ -20,15 +20,32 @@ import { COLLABORATOR_COLORS } from '@/features/board/elements'
  */
 export function useCollaboration(
   roomId,
-  { onRemoteElementsChange, onRemoteDrawPreview, onReaction, isHost = false } = {}
+  {
+    onRemoteElementsChange,
+    onRemoteDrawPreview,
+    onReaction,
+    onPresenterUpdate,
+    onChatMessage,
+    isHost = false,
+  } = {}
 ) {
   const supabase = createClient()
   const channelRef = useRef(null)
   const onReactionRef = useRef(onReaction)
+  const onPresenterUpdateRef = useRef(onPresenterUpdate)
+  const onChatMessageRef = useRef(onChatMessage)
 
   useEffect(() => {
     onReactionRef.current = onReaction
   }, [onReaction])
+
+  useEffect(() => {
+    onPresenterUpdateRef.current = onPresenterUpdate
+  }, [onPresenterUpdate])
+
+  useEffect(() => {
+    onChatMessageRef.current = onChatMessage
+  }, [onChatMessage])
 
   // Stable local identity (starts with deterministic SSR default to avoid hydration mismatch)
   const [currentUser, setCurrentUser] = useState({
@@ -150,6 +167,18 @@ export function useCollaboration(
     channel.on('broadcast', { event: 'emoji_reaction' }, ({ payload }) => {
       if (!payload) return
       onReactionRef.current?.(payload)
+    })
+
+    // 7. Broadcast: Presenter live viewport stream
+    channel.on('broadcast', { event: 'presenter_view' }, ({ payload }) => {
+      if (!payload || payload.userId === currentUser.id) return
+      onPresenterUpdateRef.current?.(payload)
+    })
+
+    // 8. Broadcast: Realtime chat message
+    channel.on('broadcast', { event: 'chat_message' }, ({ payload }) => {
+      if (!payload) return
+      onChatMessageRef.current?.(payload)
     })
 
     // Subscribe to channel
@@ -293,6 +322,53 @@ export function useCollaboration(
     [currentUser]
   )
 
+  /**
+   * Broadcast presenter view stream coordinates.
+   */
+  const broadcastPresenterView = useCallback(
+    (viewport) => {
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'presenter_view',
+        payload: {
+          userId: currentUser.id,
+          name: currentUser.name,
+          color: currentUser.color,
+          viewport,
+        },
+      })
+    },
+    [currentUser]
+  )
+
+  /**
+   * Broadcast in-app realtime chat message.
+   */
+  const broadcastChatMessage = useCallback(
+    (text) => {
+      if (!text || !text.trim()) return null
+      const messagePayload = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderColor: currentUser.color,
+        text: text.trim(),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }
+
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'chat_message',
+        payload: messagePayload,
+      })
+
+      // Dispatch locally
+      onChatMessageRef.current?.(messagePayload)
+      return messagePayload
+    },
+    [currentUser]
+  )
+
   return {
     currentUser,
     collaborators,
@@ -304,5 +380,7 @@ export function useCollaboration(
     broadcastDrawPreview,
     broadcastElementsUpdate,
     broadcastReaction,
+    broadcastPresenterView,
+    broadcastChatMessage,
   }
 }
