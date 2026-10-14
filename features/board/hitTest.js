@@ -272,3 +272,78 @@ export function getCursorForHandle(handle) {
       return 'default'
   }
 }
+
+/**
+ * Returns the 4 magnetic anchor connection points for an element:
+ * top, right, bottom, left.
+ *
+ * @param {import('./elements').CanvasElement} el
+ * @returns {{anchor: 'top'|'right'|'bottom'|'left', x: number, y: number}[]}
+ */
+export function getElementAnchors(el) {
+  const b = getElementBounds(el)
+  if (!b) return []
+
+  return [
+    { anchor: 'top', x: b.x + b.width / 2, y: b.y },
+    { anchor: 'right', x: b.x + b.width, y: b.y + b.height / 2 },
+    { anchor: 'bottom', x: b.x + b.width / 2, y: b.y + b.height },
+    { anchor: 'left', x: b.x, y: b.y + b.height / 2 },
+  ]
+}
+
+/**
+ * Returns specific anchor point coordinates for an element.
+ *
+ * @param {import('./elements').CanvasElement} el
+ * @param {'top'|'right'|'bottom'|'left'} anchor
+ * @returns {{x: number, y: number} | null}
+ */
+export function getAnchorCoordinates(el, anchor) {
+  const anchors = getElementAnchors(el)
+  const found = anchors.find((a) => a.anchor === anchor)
+  return found ? { x: found.x, y: found.y } : null
+}
+
+/**
+ * Find the closest anchor point across all elements within snapRadius.
+ *
+ * @param {number} wx - World X
+ * @param {number} wy - World Y
+ * @param {import('./elements').CanvasElement[]} elements
+ * @param {string} [excludeId]
+ * @param {number} [snapRadius=24]
+ * @returns {{elementId: string, anchor: 'top'|'right'|'bottom'|'left', x: number, y: number, distance: number} | null}
+ */
+export function findNearestAnchor(wx, wy, elements, excludeId = null, snapRadius = 24) {
+  let closest = null
+  let minDistance = snapRadius
+
+  for (const el of elements) {
+    if (
+      el.id === excludeId ||
+      LINE_SHAPES.includes(el.type) ||
+      el.type === 'pen' ||
+      el.type === 'brush'
+    ) {
+      continue
+    }
+
+    const anchors = getElementAnchors(el)
+    for (const a of anchors) {
+      const d = distanceBetween(wx, wy, a.x, a.y)
+      if (d < minDistance) {
+        minDistance = d
+        closest = {
+          elementId: el.id,
+          anchor: a.anchor,
+          x: a.x,
+          y: a.y,
+          distance: d,
+        }
+      }
+    }
+  }
+
+  return closest
+}

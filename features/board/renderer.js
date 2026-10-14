@@ -371,6 +371,41 @@ export function drawSelectionBox(ctx, bounds) {
   ctx.restore()
 }
 
+/**
+ * Draw magnetic anchor connection point indicators.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{x: number, y: number}[]} anchors
+ * @param {{x: number, y: number} | null} [activeAnchor=null]
+ */
+export function drawMagneticAnchors(ctx, anchors, activeAnchor = null) {
+  if (!anchors || anchors.length === 0) return
+
+  ctx.save()
+  for (const a of anchors) {
+    const isSnapped =
+      activeAnchor && Math.hypot(a.x - activeAnchor.x, a.y - activeAnchor.y) < 2
+    const size = isSnapped ? 6 : 4
+
+    // Outer glow for snapped anchor
+    if (isSnapped) {
+      ctx.beginPath()
+      ctx.arc(a.x, a.y, 11, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(25, 113, 194, 0.22)'
+      ctx.fill()
+    }
+
+    // Inner anchor circle
+    ctx.beginPath()
+    ctx.arc(a.x, a.y, size, 0, Math.PI * 2)
+    ctx.fillStyle = isSnapped ? '#1971c2' : '#ffffff'
+    ctx.strokeStyle = '#1971c2'
+    ctx.lineWidth = isSnapped ? 2 : 1.5
+    ctx.fill()
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 export function drawDiamond(ctx, el) {
   const cx = el.x + el.width / 2
   const cy = el.y + el.height / 2

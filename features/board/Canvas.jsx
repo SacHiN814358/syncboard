@@ -13,6 +13,7 @@ import {
   drawGrid,
   drawElement,
   drawSelectionBox,
+  drawMagneticAnchors,
 } from './renderer'
 import {
   findElementAtPoint,
@@ -20,6 +21,9 @@ import {
   hitTestElement,
   getResizeHandleAtPoint,
   getCursorForHandle,
+  getElementAnchors,
+  getAnchorCoordinates,
+  findNearestAnchor,
 } from './hitTest'
 import { BOX_SHAPES, LINE_SHAPES } from './elements'
 
@@ -85,6 +89,8 @@ export default function Canvas({
   // Needs repaint flag for requestAnimationFrame
   const needsRepaintRef = useRef(true)
   const lastPointerWorldPosRef = useRef({ x: 0, y: 0 })
+  const activeSnapAnchorRef = useRef(null) // { elementId, anchor, x, y }
+  const visibleAnchorsRef = useRef([]) // Array of anchor coordinates for visible snap points
 
   // Process & insert image onto board
   const handleProcessAndInsertImage = useCallback(
@@ -190,6 +196,11 @@ export default function Canvas({
           if (bounds) {
             drawSelectionBox(ctx, bounds)
           }
+        }
+
+        // Draw magnetic connection anchors when drawing lines/arrows
+        if (visibleAnchorsRef.current.length > 0 || activeSnapAnchorRef.current) {
+          drawMagneticAnchors(ctx, visibleAnchorsRef.current, activeSnapAnchorRef.current)
         }
 
         ctx.restore()
@@ -488,16 +499,24 @@ export default function Canvas({
         fillColor: currentFillColor,
       }
     } else if (LINE_SHAPES.includes(activeTool)) {
+      const snap = findNearestAnchor(world.x, world.y, elements, null, 26 / viewport.zoom)
+      const startX = snap ? snap.x : world.x
+      const startY = snap ? snap.y : world.y
+
       transientElementRef.current = {
         id: generateId(),
         type: activeTool,
-        x1: world.x,
-        y1: world.y,
-        x2: world.x,
-        y2: world.y,
+        x1: startX,
+        y1: startY,
+        x2: startX,
+        y2: startY,
         color: currentColor,
         strokeWidth: currentStrokeWidth,
+        startBinding: snap ? { elementId: snap.elementId, anchor: snap.anchor } : null,
       }
+      activeSnapAnchorRef.current = snap
+      const snapEl = snap ? elements.find((el) => el.id === snap.elementId) : null
+      visibleAnchorsRef.current = snapEl ? getElementAnchors(snapEl) : []
     }
 
     needsRepaintRef.current = true
@@ -544,6 +563,27 @@ export default function Canvas({
             ? 'cell'
             : 'crosshair'
       }
+
+      // Magnetic connection indicators on hover with line/arrow tool
+      if (LINE_SHAPES.includes(activeTool)) {
+        const snap = findNearestAnchor(world.x, world.y, elements, null, 28 / viewport.zoom)
+        if (snap) {
+          activeSnapAnchorRef.current = snap
+          const el = elements.find((item) => item.id === snap.elementId)
+          visibleAnchorsRef.current = el ? getElementAnchors(el) : []
+        } else {
+          activeSnapAnchorRef.current = null
+          const hoveredEl = findElementAtPoint(world.x, world.y, elements, 24 / viewport.zoom)
+          visibleAnchorsRef.current =
+            hoveredEl && !LINE_SHAPES.includes(hoveredEl.type) ? getElementAnchors(hoveredEl) : []
+        }
+        needsRepaintRef.current = true
+      } else if (visibleAnchorsRef.current.length > 0 || activeSnapAnchorRef.current) {
+        visibleAnchorsRef.current = []
+        activeSnapAnchorRef.current = null
+        needsRepaintRef.current = true
+      }
+
       return
     }
 
@@ -641,6 +681,38 @@ export default function Canvas({
       }
 
       const updated = elements.map((el) => (el.id === selectedElement.id ? updatedEl : el))
+
+      // Update connected lines & arrows when shape is resized
+      for (let i = 0; i < updated.length; i++) {
+        const item = updated[i]
+        if (LINE_SHAPES.includes(item.type)) {
+          let changed = false
+          let nextLine = { ...item }
+
+          if (item.startBinding?.elementId === updatedEl.id) {
+            const pt = getAnchorCoordinates(updatedEl, item.startBinding.anchor)
+            if (pt) {
+              nextLine.x1 = pt.x
+              nextLine.y1 = pt.y
+              changed = true
+            }
+          }
+
+          if (item.endBinding?.elementId === updatedEl.id) {
+            const pt = getAnchorCoordinates(updatedEl, item.endBinding.anchor)
+            if (pt) {
+              nextLine.x2 = pt.x
+              nextLine.y2 = pt.y
+              changed = true
+            }
+          }
+
+          if (changed) {
+            updated[i] = nextLine
+          }
+        }
+      }
+
       onElementsChange(updated)
       onSelectElement(updatedEl)
       needsRepaintRef.current = true
@@ -652,6 +724,8 @@ export default function Canvas({
       const targetWorldX = world.x - dragOffsetRef.current.x
       const targetWorldY = world.y - dragOffsetRef.current.y
 
+      let movedEl = null
+
       const updated = elements.map((el) => {
         if (el.id !== selectedElement.id) return el
 
@@ -660,26 +734,62 @@ export default function Canvas({
           const dy = world.y - pointerStartRef.current.worldY
           pointerStartRef.current.worldX = world.x
           pointerStartRef.current.worldY = world.y
-          return {
+          movedEl = {
             ...el,
             points: el.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
           }
+          return movedEl
         } else if (LINE_SHAPES.includes(el.type)) {
           const dx = world.x - pointerStartRef.current.worldX
           const dy = world.y - pointerStartRef.current.worldY
           pointerStartRef.current.worldX = world.x
           pointerStartRef.current.worldY = world.y
-          return {
+          movedEl = {
             ...el,
             x1: el.x1 + dx,
             y1: el.y1 + dy,
             x2: el.x2 + dx,
             y2: el.y2 + dy,
           }
+          return movedEl
         } else {
-          return { ...el, x: targetWorldX, y: targetWorldY }
+          movedEl = { ...el, x: targetWorldX, y: targetWorldY }
+          return movedEl
         }
       })
+
+      // Update connected line and arrow bindings when shape moves!
+      if (movedEl) {
+        for (let i = 0; i < updated.length; i++) {
+          const item = updated[i]
+          if (LINE_SHAPES.includes(item.type)) {
+            let changed = false
+            let nextLine = { ...item }
+
+            if (item.startBinding?.elementId === movedEl.id) {
+              const pt = getAnchorCoordinates(movedEl, item.startBinding.anchor)
+              if (pt) {
+                nextLine.x1 = pt.x
+                nextLine.y1 = pt.y
+                changed = true
+              }
+            }
+
+            if (item.endBinding?.elementId === movedEl.id) {
+              const pt = getAnchorCoordinates(movedEl, item.endBinding.anchor)
+              if (pt) {
+                nextLine.x2 = pt.x
+                nextLine.y2 = pt.y
+                changed = true
+              }
+            }
+
+            if (changed) {
+              updated[i] = nextLine
+            }
+          }
+        }
+      }
 
       onElementsChange(updated)
       onSelectElement(updated.find((el) => el.id === selectedElement.id) || null)
@@ -711,8 +821,25 @@ export default function Canvas({
         current.radiusX = Math.abs(world.x - startW.worldX) / 2
         current.radiusY = Math.abs(world.y - startW.worldY) / 2
       } else if (LINE_SHAPES.includes(current.type)) {
-        current.x2 = world.x
-        current.y2 = world.y
+        const startElId = current.startBinding?.elementId
+        const snap = findNearestAnchor(world.x, world.y, elements, startElId, 26 / viewport.zoom)
+        if (snap) {
+          current.x2 = snap.x
+          current.y2 = snap.y
+          current.endBinding = { elementId: snap.elementId, anchor: snap.anchor }
+          activeSnapAnchorRef.current = snap
+          const targetEl = elements.find((item) => item.id === snap.elementId)
+          visibleAnchorsRef.current = targetEl ? getElementAnchors(targetEl) : []
+        } else {
+          current.x2 = world.x
+          current.y2 = world.y
+          current.endBinding = null
+          activeSnapAnchorRef.current = null
+          const startEl = current.startBinding
+            ? elements.find((item) => item.id === current.startBinding.elementId)
+            : null
+          visibleAnchorsRef.current = startEl ? getElementAnchors(startEl) : []
+        }
       }
 
       // Broadcast transient drawing preview to collaborators
@@ -765,6 +892,8 @@ export default function Canvas({
     }
 
     interactionModeRef.current = 'none'
+    activeSnapAnchorRef.current = null
+    visibleAnchorsRef.current = []
     needsRepaintRef.current = true
   }
 
