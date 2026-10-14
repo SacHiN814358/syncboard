@@ -301,6 +301,7 @@ export function useCollaboration(
           }
 
           case 'reaction': {
+            if (payload.userId === currentUser.id) return
             onReactionRef.current?.(payload)
             break
           }
@@ -312,6 +313,7 @@ export function useCollaboration(
           }
 
           case 'chat': {
+            if (payload.senderId === currentUser.id) return
             onChatMessageRef.current?.(payload)
             break
           }

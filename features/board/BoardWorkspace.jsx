@@ -245,8 +245,11 @@ export default function BoardWorkspace({ roomId }) {
       })
     },
     onReaction: (rx) => {
-      const offset = (Math.random() - 0.5) * 44
-      setReactions((prev) => [...prev, { ...rx, offsetX: offset }])
+      setReactions((prev) => {
+        if (prev.some((r) => r.id === rx.id)) return prev
+        const offset = (Math.random() - 0.5) * 44
+        return [...prev, { ...rx, offsetX: offset }]
+      })
       setTimeout(() => {
         setReactions((prev) => prev.filter((r) => r.id !== rx.id))
       }, 2400)
@@ -282,7 +285,10 @@ export default function BoardWorkspace({ roomId }) {
       })
     },
     onChatMessage: (msg) => {
-      setMessages((prev) => [...prev, msg])
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev
+        return [...prev, msg]
+      })
       setChatOpen((isOpen) => {
         if (!isOpen && msg.senderId !== currentUser?.id) {
           setUnreadCount((c) => c + 1)
