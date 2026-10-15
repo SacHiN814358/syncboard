@@ -13,6 +13,7 @@ import {
   drawGrid,
   drawElement,
   drawSelectionBox,
+  drawHoverBox,
   drawMagneticAnchors,
 } from './renderer'
 import {
@@ -92,6 +93,7 @@ export default function Canvas({
   const lastPointerWorldPosRef = useRef({ x: 0, y: 0 })
   const activeSnapAnchorRef = useRef(null) // { elementId, anchor, x, y }
   const visibleAnchorsRef = useRef([]) // Array of anchor coordinates for visible snap points
+  const hoveredBucketElementRef = useRef(null)
 
   // Synchronized prop refs for zero-teardown 60 FPS rendering
   const elementsRef = useRef(elements)
@@ -236,6 +238,14 @@ export default function Canvas({
         // Draw magnetic connection anchors when drawing lines/arrows
         if (visibleAnchorsRef.current.length > 0 || activeSnapAnchorRef.current) {
           drawMagneticAnchors(ctx, visibleAnchorsRef.current, activeSnapAnchorRef.current)
+        }
+
+        // Draw bucket hover highlight
+        if (activeTool === 'bucket' && hoveredBucketElementRef.current) {
+          const bounds = getElementBounds(hoveredBucketElementRef.current)
+          if (bounds) {
+            drawHoverBox(ctx, bounds, '#1971c2')
+          }
         }
 
         ctx.restore()
@@ -490,7 +500,7 @@ export default function Canvas({
     // Paint Bucket Tool: Fill clicked shape with color
     if (activeTool === 'bucket') {
       const currentListForBucket = elementsRef.current || elements || []
-      const hit = findElementAtPoint(world.x, world.y, currentListForBucket, 12 / viewport.zoom)
+      const hit = findElementAtPoint(world.x, world.y, currentListForBucket, 14 / viewport.zoom)
       if (hit) {
         const fillToApply = currentFillColor === 'transparent' ? currentColor : currentFillColor
         const updated = currentListForBucket.map((el) =>
@@ -498,7 +508,9 @@ export default function Canvas({
         )
         elementsRef.current = updated
         onElementsChange(updated)
-        onSelectElement(updated.find((el) => el.id === hit.id) || null)
+        if (selectedElement && selectedElement.id === hit.id) {
+          onSelectElement({ ...selectedElement, fillColor: fillToApply })
+        }
         needsRepaintRef.current = true
       }
       isInteractingRef.current = false
@@ -623,6 +635,18 @@ export default function Canvas({
       } else if (visibleAnchorsRef.current.length > 0 || activeSnapAnchorRef.current) {
         visibleAnchorsRef.current = []
         activeSnapAnchorRef.current = null
+        needsRepaintRef.current = true
+      }
+
+      // Hover feedback for Paint Bucket Tool
+      if (activeTool === 'bucket') {
+        const hit = findElementAtPoint(world.x, world.y, elementsRef.current || elements || [], 14 / viewport.zoom)
+        if (hit?.id !== hoveredBucketElementRef.current?.id) {
+          hoveredBucketElementRef.current = hit
+          needsRepaintRef.current = true
+        }
+      } else if (hoveredBucketElementRef.current) {
+        hoveredBucketElementRef.current = null
         needsRepaintRef.current = true
       }
 

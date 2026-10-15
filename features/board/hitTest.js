@@ -137,8 +137,23 @@ export function findElementAtPoint(wx, wy, elements, tolerance = 8) {
 
 // --- Internal hit-test helpers ---
 
+function pointInPolygon(px, py, points) {
+  let inside = false
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const xi = points[i].x, yi = points[i].y
+    const xj = points[j].x, yj = points[j].y
+    const intersect = yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
 function hitTestPen(wx, wy, el, tolerance) {
   if (!el.points || el.points.length < 2) return false
+
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    if (pointInPolygon(wx, wy, el.points)) return true
+  }
 
   // Check distance to each segment
   for (let i = 0; i < el.points.length - 1; i++) {
@@ -147,23 +162,18 @@ function hitTestPen(wx, wy, el, tolerance) {
       el.points[i].x, el.points[i].y,
       el.points[i + 1].x, el.points[i + 1].y
     )
-    if (d <= tolerance + el.strokeWidth / 2) return true
+    if (d <= tolerance + (el.strokeWidth || 2) / 2) return true
   }
   return false
 }
 
 function hitTestRect(wx, wy, el, tolerance) {
-  // Check if inside the fill area or near the stroke
-  const inside = pointInRect(wx, wy, el.x, el.y, el.width, el.height)
-  if (el.fillColor && el.fillColor !== 'transparent' && inside) return true
+  const minX = Math.min(el.x, el.x + el.width)
+  const minY = Math.min(el.y, el.y + el.height)
+  const w = Math.abs(el.width)
+  const h = Math.abs(el.height)
 
-  // Check proximity to edges
-  const nearTop = Math.abs(wy - el.y) <= tolerance && wx >= el.x - tolerance && wx <= el.x + el.width + tolerance
-  const nearBottom = Math.abs(wy - (el.y + el.height)) <= tolerance && wx >= el.x - tolerance && wx <= el.x + el.width + tolerance
-  const nearLeft = Math.abs(wx - el.x) <= tolerance && wy >= el.y - tolerance && wy <= el.y + el.height + tolerance
-  const nearRight = Math.abs(wx - (el.x + el.width)) <= tolerance && wy >= el.y - tolerance && wy <= el.y + el.height + tolerance
-
-  return nearTop || nearBottom || nearLeft || nearRight || inside
+  return pointInRect(wx, wy, minX - tolerance, minY - tolerance, w + tolerance * 2, h + tolerance * 2)
 }
 
 function hitTestEllipse(wx, wy, el, tolerance) {
@@ -175,18 +185,7 @@ function hitTestEllipse(wx, wy, el, tolerance) {
   const dy = wy - el.y
   const normalized = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)
 
-  if (el.fillColor && el.fillColor !== 'transparent') {
-    return normalized <= 1
-  }
-
-  // Only stroke — check if near the boundary
-  const rxInner = Math.max(0, Math.abs(el.radiusX) - tolerance)
-  const ryInner = Math.max(0, Math.abs(el.radiusY) - tolerance)
-  const normalizedInner = rxInner > 0 && ryInner > 0
-    ? (dx * dx) / (rxInner * rxInner) + (dy * dy) / (ryInner * ryInner)
-    : 0
-
-  return normalized <= 1 && normalizedInner >= 1
+  return normalized <= 1
 }
 
 function hitTestLine(wx, wy, x1, y1, x2, y2, tolerance) {

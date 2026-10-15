@@ -220,6 +220,16 @@ export default function Toolbar({
     }
   }, [activeTool, isShapeActive])
 
+  // Automatically activate fill color slot when bucket tool is chosen
+  useEffect(() => {
+    if (activeTool === 'bucket') {
+      setActiveColorSlot('fill')
+      if (currentFillColor === 'transparent') {
+        onChangeFillColor?.(currentColor)
+      }
+    }
+  }, [activeTool, currentFillColor, currentColor, onChangeFillColor])
+
   // Close dropdown on click outside or Escape
   useEffect(() => {
     if (!shapesOpen) return

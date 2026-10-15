@@ -57,6 +57,18 @@ export function drawGrid(ctx, canvasWidth, canvasHeight, viewport) {
 export function drawPen(ctx, el) {
   if (!el.points || el.points.length < 2) return
 
+  // Fill loop if fillColor is specified
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.beginPath()
+    ctx.moveTo(el.points[0].x, el.points[0].y)
+    for (let i = 1; i < el.points.length; i++) {
+      ctx.lineTo(el.points[i].x, el.points[i].y)
+    }
+    ctx.closePath()
+    ctx.fill()
+  }
+
   ctx.strokeStyle = el.color
   ctx.lineWidth = el.strokeWidth
   ctx.lineCap = 'round'
@@ -368,6 +380,28 @@ export function drawSelectionBox(ctx, bounds) {
     ctx.fill()
     ctx.stroke()
   }
+  ctx.restore()
+}
+
+/**
+ * Draw a subtle hover highlight box around a shape (e.g. for bucket fill tool).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{x: number, y: number, width: number, height: number}} bounds
+ * @param {string} [color='#1971c2']
+ */
+export function drawHoverBox(ctx, bounds, color = '#1971c2') {
+  if (!bounds) return
+  const pad = 4
+  const bx = bounds.x - pad
+  const by = bounds.y - pad
+  const bw = bounds.width + pad * 2
+  const bh = bounds.height + pad * 2
+
+  ctx.save()
+  ctx.strokeStyle = color
+  ctx.lineWidth = 1.5
+  ctx.setLineDash([4, 4])
+  ctx.strokeRect(bx, by, bw, bh)
   ctx.restore()
 }
 

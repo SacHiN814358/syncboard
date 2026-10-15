@@ -737,7 +737,7 @@ export default function BoardWorkspace({ roomId }) {
           setActiveTool(tool)
           if (tool !== 'select') setSelectedElement(null)
         }}
-        currentColor={currentColor}
+        currentColor={selectedElement?.color || currentColor}
         onChangeColor={(c) => {
           setCurrentColor(c)
           if (selectedElement) {
@@ -749,7 +749,11 @@ export default function BoardWorkspace({ roomId }) {
             setSelectedElement({ ...selectedElement, color: c })
           }
         }}
-        currentFillColor={currentFillColor}
+        currentFillColor={
+          selectedElement?.fillColor !== undefined
+            ? selectedElement.fillColor
+            : currentFillColor
+        }
         onChangeFillColor={(fill) => {
           setCurrentFillColor(fill)
           if (selectedElement) {
@@ -761,7 +765,7 @@ export default function BoardWorkspace({ roomId }) {
             setSelectedElement({ ...selectedElement, fillColor: fill })
           }
         }}
-        currentStrokeWidth={currentStrokeWidth}
+        currentStrokeWidth={selectedElement?.strokeWidth || currentStrokeWidth}
         onChangeStrokeWidth={(w) => {
           setCurrentStrokeWidth(w)
           if (selectedElement) {
@@ -787,11 +791,15 @@ export default function BoardWorkspace({ roomId }) {
       <PropertiesPanel
         activeTool={activeTool}
         selectedElement={selectedElement}
-        currentColor={currentColor}
-        currentStrokeWidth={currentStrokeWidth}
-        currentFillColor={currentFillColor}
-        currentStickyColor={currentStickyColor}
-        currentFontSize={currentFontSize}
+        currentColor={selectedElement?.color || currentColor}
+        currentStrokeWidth={selectedElement?.strokeWidth || currentStrokeWidth}
+        currentFillColor={
+          selectedElement?.fillColor !== undefined
+            ? selectedElement.fillColor
+            : currentFillColor
+        }
+        currentStickyColor={selectedElement?.bgColor || currentStickyColor}
+        currentFontSize={selectedElement?.fontSize || currentFontSize}
         onChangeColor={(c) => {
           setCurrentColor(c)
           if (selectedElement) {
