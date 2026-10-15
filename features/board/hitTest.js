@@ -82,7 +82,29 @@ export function getElementBounds(el) {
  * @returns {boolean}
  */
 export function hitTestElement(wx, wy, el, tolerance = 8) {
-  if (BOX_SHAPES.includes(el.type) || el.type === 'sticky' || el.type === 'image') {
+  if (
+    el.type === 'rectangle' ||
+    el.type === 'rounded-rectangle' ||
+    el.type === 'sticky' ||
+    el.type === 'image'
+  ) {
+    return hitTestRect(wx, wy, el, tolerance)
+  }
+
+  // Exact polygon hit-testing for complex vector shapes
+  const poly = getShapePolygon(el)
+  if (poly && poly.length >= 3) {
+    if (pointInPolygon(wx, wy, poly)) return true
+    for (let i = 0; i < poly.length; i++) {
+      const next = poly[(i + 1) % poly.length]
+      if (distanceToSegment(wx, wy, poly[i].x, poly[i].y, next.x, next.y) <= tolerance) {
+        return true
+      }
+    }
+    return false
+  }
+
+  if (BOX_SHAPES.includes(el.type)) {
     return hitTestRect(wx, wy, el, tolerance)
   }
 
@@ -114,6 +136,185 @@ export function hitTestElement(wx, wy, el, tolerance = 8) {
     default:
       return false
   }
+}
+
+/**
+ * Generate exact polygon vertices for geometric vector shapes.
+ * @param {import('./elements').CanvasElement} el
+ * @returns {{x: number, y: number}[] | null}
+ */
+export function getShapePolygon(el) {
+  const { x, y, width: w, height: h } = el
+  if (w == null || h == null) return null
+
+  switch (el.type) {
+    case 'triangle':
+      return [
+        { x: x + w / 2, y },
+        { x: x + w, y: y + h },
+        { x, y: y + h },
+      ]
+
+    case 'right-triangle':
+      return [
+        { x, y },
+        { x, y: y + h },
+        { x: x + w, y: y + h },
+      ]
+
+    case 'diamond':
+      return [
+        { x: x + w / 2, y },
+        { x: x + w, y: y + h / 2 },
+        { x: x + w / 2, y: y + h },
+        { x, y: y + h / 2 },
+      ]
+
+    case 'trapezoid': {
+      const inset = w * 0.2
+      return [
+        { x: x + inset, y },
+        { x: x + w - inset, y },
+        { x: x + w, y: y + h },
+        { x, y: y + h },
+      ]
+    }
+
+    case 'parallelogram': {
+      const skew = w * 0.25
+      return [
+        { x: x + skew, y },
+        { x: x + w, y },
+        { x: x + w - skew, y: y + h },
+        { x, y: y + h },
+      ]
+    }
+
+    case 'pentagon':
+      return getRegularPolygonVertices(x, y, w, h, 5, -Math.PI / 2)
+
+    case 'hexagon':
+      return getRegularPolygonVertices(x, y, w, h, 6, 0)
+
+    case 'heptagon':
+      return getRegularPolygonVertices(x, y, w, h, 7, -Math.PI / 2)
+
+    case 'octagon':
+      return getRegularPolygonVertices(x, y, w, h, 8, Math.PI / 8)
+
+    case 'star':
+      return getStarVertices(x, y, w, h, 5, 0.45)
+
+    case 'star-4':
+      return getStarVertices(x, y, w, h, 4, 0.38)
+
+    case 'star-6':
+      return getStarVertices(x, y, w, h, 6, 0.52)
+
+    case 'chevron': {
+      const indent = w * 0.35
+      return [
+        { x, y },
+        { x: x + w - indent, y },
+        { x: x + w, y: y + h / 2 },
+        { x: x + w - indent, y: y + h },
+        { x, y: y + h },
+        { x: x + indent, y: y + h / 2 },
+      ]
+    }
+
+    case 'arrow-right': {
+      const headW = w * 0.45
+      const stemH = h * 0.4
+      const stemY = y + (h - stemH) / 2
+      return [
+        { x, y: stemY },
+        { x: x + w - headW, y: stemY },
+        { x: x + w - headW, y },
+        { x: x + w, y: y + h / 2 },
+        { x: x + w - headW, y: y + h },
+        { x: x + w - headW, y: stemY + stemH },
+        { x, y: stemY + stemH },
+      ]
+    }
+
+    case 'arrow-left': {
+      const headW = w * 0.45
+      const stemH = h * 0.4
+      const stemY = y + (h - stemH) / 2
+      return [
+        { x: x + w, y: stemY },
+        { x: x + headW, y: stemY },
+        { x: x + headW, y },
+        { x, y: y + h / 2 },
+        { x: x + headW, y: y + h },
+        { x: x + headW, y: stemY + stemH },
+        { x: x + w, y: stemY + stemH },
+      ]
+    }
+
+    case 'arrow-up': {
+      const headH = h * 0.45
+      const stemW = w * 0.4
+      const stemX = x + (w - stemW) / 2
+      return [
+        { x: stemX, y: y + h },
+        { x: stemX, y: y + headH },
+        { x, y: y + headH },
+        { x: x + w / 2, y },
+        { x: x + w, y: y + headH },
+        { x: stemX + stemW, y: y + headH },
+        { x: stemX + stemW, y: y + h },
+      ]
+    }
+
+    case 'arrow-down': {
+      const headH = h * 0.45
+      const stemW = w * 0.4
+      const stemX = x + (w - stemW) / 2
+      return [
+        { x: stemX, y },
+        { x: stemX, y: y + h - headH },
+        { x, y: y + h - headH },
+        { x: x + w / 2, y: y + h },
+        { x: x + w, y: y + h - headH },
+        { x: stemX + stemW, y: y + h - headH },
+        { x: stemX + stemW, y },
+      ]
+    }
+
+    default:
+      return null
+  }
+}
+
+function getRegularPolygonVertices(x, y, w, h, sides, startAngle = -Math.PI / 2) {
+  const cx = x + w / 2
+  const cy = y + h / 2
+  const rx = Math.abs(w) / 2
+  const ry = Math.abs(h) / 2
+  const pts = []
+  for (let i = 0; i < sides; i++) {
+    const angle = startAngle + (i * 2 * Math.PI) / sides
+    pts.push({ x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) })
+  }
+  return pts
+}
+
+function getStarVertices(x, y, w, h, points, innerRatio = 0.45) {
+  const cx = x + w / 2
+  const cy = y + h / 2
+  const rx = Math.abs(w) / 2
+  const ry = Math.abs(h) / 2
+  const step = Math.PI / points
+  const pts = []
+  for (let i = 0; i < 2 * points; i++) {
+    const rX = i % 2 === 0 ? rx : rx * innerRatio
+    const rY = i % 2 === 0 ? ry : ry * innerRatio
+    const angle = i * step - Math.PI / 2
+    pts.push({ x: cx + rX * Math.cos(angle), y: cy + rY * Math.sin(angle) })
+  }
+  return pts
 }
 
 /**
@@ -151,7 +352,8 @@ function pointInPolygon(px, py, points) {
 function hitTestPen(wx, wy, el, tolerance) {
   if (!el.points || el.points.length < 2) return false
 
-  if (el.fillColor && el.fillColor !== 'transparent') {
+  // If points form a closed or enclosed loop, clicking inside it hits the pen!
+  if (el.points.length >= 3) {
     if (pointInPolygon(wx, wy, el.points)) return true
   }
 

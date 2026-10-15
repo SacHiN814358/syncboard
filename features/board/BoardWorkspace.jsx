@@ -435,12 +435,12 @@ export default function BoardWorkspace({ roomId }) {
 
   // Commit element changes (Pushes to History + Saves to DB + Broadcasts to Peers)
   const handleElementsChange = useCallback(
-    (newElements) => {
+    (newElements, deltaElements = null) => {
       elementsRef.current = newElements
       setElements(newElements)
       historyRef.current.push(newElements)
       saveBoard(newElements)
-      broadcastElementsUpdate(newElements, 'upsert')
+      broadcastElementsUpdate(deltaElements || newElements, 'upsert')
     },
     [saveBoard, broadcastElementsUpdate]
   )

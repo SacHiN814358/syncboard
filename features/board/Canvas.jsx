@@ -28,6 +28,9 @@ import {
   findNearestAnchor,
 } from './hitTest'
 import { BOX_SHAPES, LINE_SHAPES } from './elements'
+import { performFloodFill } from './floodFill'
+
+const BUCKET_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23212529' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z'/%3E%3Cpath d='m5 2 5 5'/%3E%3Cpath d='M2 13h15'/%3E%3Cpath d='M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z' fill='%231971c2'/%3E%3C/svg%3E") 4 20, crosshair`
 
 /**
  * High-performance HTML5 2D Canvas with requestAnimationFrame rendering.
@@ -525,12 +528,32 @@ export default function Canvas({
       return
     }
 
-    // Paint Bucket Tool: Fill clicked shape with color
+    // Paint Bucket Tool: Fill clicked shape or freehand closed region
     if (activeTool === 'bucket') {
       const currentListForBucket = elementsRef.current || elements || []
       const hit = findElementAtPoint(world.x, world.y, currentListForBucket, 14 / viewport.zoom)
+
+      const fillToApply =
+        currentFillColor !== undefined && currentFillColor !== null
+          ? currentFillColor
+          : currentColor || '#1971c2'
+
       if (hit) {
-        const fillToApply = currentFillColor && currentFillColor !== 'transparent' ? currentFillColor : (currentColor || '#1971c2')
+        // If hit is an existing flood fill image and user clicked "No Fill" (transparent), remove it
+        if (hit.isFloodFill && fillToApply === 'transparent') {
+          const updated = currentListForBucket.filter((el) => el.id !== hit.id)
+          elementsRef.current = updated
+          onElementsChange(updated)
+          if (selectedElement && selectedElement.id === hit.id) {
+            onSelectElement(null)
+          }
+          toast.success('Removed fill! 🎨', { id: 'fill-toast', duration: 1200 })
+          needsRepaintRef.current = true
+          isInteractingRef.current = false
+          return
+        }
+
+        // Native vector shape or closed stroke fill
         const updated = currentListForBucket.map((el) => {
           if (el.id !== hit.id) return el
           if (LINE_SHAPES.includes(el.type)) {
@@ -540,12 +563,65 @@ export default function Canvas({
         })
         elementsRef.current = updated
         onElementsChange(updated)
-        if (selectedElement && selectedElement.id === hit.id) {
-          onSelectElement({ ...selectedElement, fillColor: fillToApply })
-        }
+        const filledEl = updated.find((el) => el.id === hit.id)
+        onSelectElement(filledEl || null)
         toast.success('Filled with color! 🎨', { id: 'fill-toast', duration: 1200 })
         needsRepaintRef.current = true
+      } else {
+        // No native shape was hit -> Run MS Paint Flood Fill on freehand drawings / closed regions!
+        const result = performFloodFill({
+          worldX: world.x,
+          worldY: world.y,
+          elements: currentListForBucket,
+          fillColor: fillToApply,
+        })
+
+        if (result.success && result.element) {
+          // Find the earliest overlapping pen/line element to insert underneath stroke outlines
+          const newEl = result.element
+          const bNew = { x: newEl.x, y: newEl.y, width: newEl.width, height: newEl.height }
+          let insertIdx = currentListForBucket.length
+
+          for (let i = 0; i < currentListForBucket.length; i++) {
+            const item = currentListForBucket[i]
+            if (item.type === 'pen' || item.type === 'brush' || LINE_SHAPES.includes(item.type)) {
+              const bItem = getElementBounds(item)
+              if (
+                bItem &&
+                bItem.x < bNew.x + bNew.width &&
+                bItem.x + bItem.width > bNew.x &&
+                bItem.y < bNew.y + bNew.height &&
+                bItem.y + bItem.height > bNew.y
+              ) {
+                insertIdx = i
+                break
+              }
+            }
+          }
+
+          const updated = [...currentListForBucket]
+          updated.splice(insertIdx, 0, newEl)
+          elementsRef.current = updated
+          onElementsChange(updated)
+          onSelectElement(newEl)
+          toast.success('Freehand region filled! 🎨', { id: 'fill-toast', duration: 1200 })
+          needsRepaintRef.current = true
+        } else if (result.reason === 'unbounded') {
+          toast.error(
+            result.message || 'Region is not closed! Please close any gaps in your drawing 🎨',
+            {
+              id: 'fill-toast',
+              duration: 2500,
+            }
+          )
+        } else if (result.reason === 'already_filled') {
+          toast(result.message || 'Region is already filled with this color', {
+            id: 'fill-toast',
+            duration: 1200,
+          })
+        }
       }
+
       isInteractingRef.current = false
       return
     }
@@ -643,7 +719,7 @@ export default function Canvas({
             : activeTool === 'select'
             ? 'default'
             : activeTool === 'bucket'
-            ? 'pointer'
+            ? BUCKET_CURSOR
             : activeTool === 'text'
             ? 'text'
             : activeTool === 'eraser'
@@ -975,7 +1051,7 @@ export default function Canvas({
           : activeTool === 'select'
           ? 'default'
           : activeTool === 'bucket'
-          ? 'pointer'
+          ? BUCKET_CURSOR
           : 'crosshair'
     }
 

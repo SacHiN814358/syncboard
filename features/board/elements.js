@@ -50,12 +50,26 @@ export const CLOSED_SHAPES = [...BOX_SHAPES, 'circle']
  * @property {{x: number, y: number}[]} points
  * @property {string} color
  * @property {number} strokeWidth
+ * @property {string} [fillColor]
  */
 
 /**
  * @typedef {Object} RectangleElement
  * @property {string} id
- * @property {'rectangle'} type
+ * @property {'rectangle' | 'rounded-rectangle'} type
+ * @property {number} x
+ * @property {number} y
+ * @property {number} width
+ * @property {number} height
+ * @property {string} color
+ * @property {number} strokeWidth
+ * @property {string} [fillColor]
+ */
+
+/**
+ * @typedef {Object} ShapeElement
+ * @property {string} id
+ * @property {string} type
  * @property {number} x
  * @property {number} y
  * @property {number} width
@@ -81,7 +95,7 @@ export const CLOSED_SHAPES = [...BOX_SHAPES, 'circle']
 /**
  * @typedef {Object} LineElement
  * @property {string} id
- * @property {'line'} type
+ * @property {'line' | 'curve'} type
  * @property {number} x1
  * @property {number} y1
  * @property {number} x2
@@ -93,7 +107,7 @@ export const CLOSED_SHAPES = [...BOX_SHAPES, 'circle']
 /**
  * @typedef {Object} ArrowElement
  * @property {string} id
- * @property {'arrow'} type
+ * @property {'arrow' | 'double-arrow'} type
  * @property {number} x1
  * @property {number} y1
  * @property {number} x2
@@ -135,10 +149,12 @@ export const CLOSED_SHAPES = [...BOX_SHAPES, 'circle']
  * @property {number} height
  * @property {string} src
  * @property {number} [aspectRatio]
+ * @property {boolean} [isFloodFill]
+ * @property {string} [fillColor]
  */
 
 /**
- * @typedef {PenElement | RectangleElement | CircleElement | LineElement | ArrowElement | TextElement | StickyElement | ImageElement} CanvasElement
+ * @typedef {PenElement | RectangleElement | ShapeElement | CircleElement | LineElement | ArrowElement | TextElement | StickyElement | ImageElement} CanvasElement
  */
 
 /**
