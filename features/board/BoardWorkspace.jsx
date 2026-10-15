@@ -750,7 +750,7 @@ export default function BoardWorkspace({ roomId }) {
           }
         }}
         currentFillColor={
-          selectedElement?.fillColor !== undefined
+          selectedElement?.fillColor && selectedElement.fillColor !== 'transparent'
             ? selectedElement.fillColor
             : currentFillColor
         }

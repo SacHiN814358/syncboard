@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
+import toast from 'react-hot-toast'
 import { generateId, processImageFile } from '@/lib/utils'
 import {
   screenToWorld,
@@ -404,6 +405,11 @@ export default function Canvas({
     lastClickedElementIdRef.current = hitUnderPointer ? hitUnderPointer.id : null
 
     if (isDouble && hitUnderPointer) {
+      isInteractingRef.current = false
+      interactionModeRef.current = 'none'
+      dragUpdatedElementsRef.current = null
+      transientElementRef.current = null
+
       if (hitUnderPointer.type === 'text' || hitUnderPointer.type === 'sticky') {
         onSelectElement(hitUnderPointer)
         onSelectTool?.('select')
@@ -421,7 +427,7 @@ export default function Canvas({
       }
 
       // Any shape or stroke: Double-click fills with active color!
-      const fillToApply = currentFillColor === 'transparent' ? currentColor : currentFillColor
+      const fillToApply = currentFillColor && currentFillColor !== 'transparent' ? currentFillColor : (currentColor || '#1971c2')
       const updated = currentList.map((el) => {
         if (el.id !== hitUnderPointer.id) return el
         if (LINE_SHAPES.includes(el.type)) {
@@ -431,9 +437,9 @@ export default function Canvas({
       })
       elementsRef.current = updated
       onElementsChange(updated)
-      if (selectedElement && selectedElement.id === hitUnderPointer.id) {
-        onSelectElement({ ...selectedElement, fillColor: fillToApply })
-      }
+      const filledEl = updated.find((el) => el.id === hitUnderPointer.id)
+      onSelectElement(filledEl || null)
+      toast.success('Filled with color! 🎨', { id: 'fill-toast', duration: 1200 })
       needsRepaintRef.current = true
       return
     }
@@ -524,15 +530,20 @@ export default function Canvas({
       const currentListForBucket = elementsRef.current || elements || []
       const hit = findElementAtPoint(world.x, world.y, currentListForBucket, 14 / viewport.zoom)
       if (hit) {
-        const fillToApply = currentFillColor === 'transparent' ? currentColor : currentFillColor
-        const updated = currentListForBucket.map((el) =>
-          el.id === hit.id ? { ...el, fillColor: fillToApply } : el
-        )
+        const fillToApply = currentFillColor && currentFillColor !== 'transparent' ? currentFillColor : (currentColor || '#1971c2')
+        const updated = currentListForBucket.map((el) => {
+          if (el.id !== hit.id) return el
+          if (LINE_SHAPES.includes(el.type)) {
+            return { ...el, color: fillToApply }
+          }
+          return { ...el, fillColor: fillToApply }
+        })
         elementsRef.current = updated
         onElementsChange(updated)
         if (selectedElement && selectedElement.id === hit.id) {
           onSelectElement({ ...selectedElement, fillColor: fillToApply })
         }
+        toast.success('Filled with color! 🎨', { id: 'fill-toast', duration: 1200 })
         needsRepaintRef.current = true
       }
       isInteractingRef.current = false
@@ -1032,6 +1043,11 @@ export default function Canvas({
 
   // 8. Double Click to edit Text/Sticky or fill Shape with color
   const handleDoubleClick = (e) => {
+    isInteractingRef.current = false
+    interactionModeRef.current = 'none'
+    dragUpdatedElementsRef.current = null
+    transientElementRef.current = null
+
     const rect = canvasRef.current.getBoundingClientRect()
     const screenX = e.clientX - rect.left
     const screenY = e.clientY - rect.top
@@ -1054,7 +1070,7 @@ export default function Canvas({
         })
       } else {
         // Double-click to fill any shape or pen stroke!
-        const fillToApply = currentFillColor === 'transparent' ? currentColor : currentFillColor
+        const fillToApply = currentFillColor && currentFillColor !== 'transparent' ? currentFillColor : (currentColor || '#1971c2')
         const updated = current.map((el) => {
           if (el.id !== hit.id) return el
           if (LINE_SHAPES.includes(el.type)) {
@@ -1064,9 +1080,9 @@ export default function Canvas({
         })
         elementsRef.current = updated
         onElementsChange(updated)
-        if (selectedElement && selectedElement.id === hit.id) {
-          onSelectElement({ ...selectedElement, fillColor: fillToApply })
-        }
+        const filledEl = updated.find((el) => el.id === hit.id)
+        onSelectElement(filledEl || null)
+        toast.success('Filled with color! 🎨', { id: 'fill-toast', duration: 1200 })
       }
       needsRepaintRef.current = true
     }

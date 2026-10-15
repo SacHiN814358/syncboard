@@ -204,19 +204,8 @@ export default function Toolbar({
   const [selectedShapeId, setSelectedShapeId] = useState('rectangle')
   const shapesDropdownRef = useRef(null)
   const fileInputRef = useRef(null)
-  const colorInputRef = useRef(null)
-
-  const handleOpenColorWheel = () => {
-    try {
-      if (colorInputRef.current?.showPicker) {
-        colorInputRef.current.showPicker()
-      } else {
-        colorInputRef.current?.click()
-      }
-    } catch (_) {
-      colorInputRef.current?.click()
-    }
-  }
+  const colorPickerRef = useRef(null)
+  const [colorPickerOpen, setColorPickerOpen] = useState(false)
 
   // Track if activeTool is one of the shapes
   const isShapeActive = SHAPES_LIST.some((s) => s.id === activeTool)
@@ -266,6 +255,30 @@ export default function Toolbar({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [shapesOpen])
+
+  // Close color picker dropdown on click outside or Escape
+  useEffect(() => {
+    if (!colorPickerOpen) return
+
+    const handleClickOutside = (e) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target)) {
+        setColorPickerOpen(false)
+      }
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setColorPickerOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [colorPickerOpen])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'EyeDropper' in window) {
@@ -325,7 +338,16 @@ export default function Toolbar({
             return (
               <button
                 key={tool.id}
-                onClick={() => onSelectTool(tool.id)}
+                onClick={() => {
+                  onSelectTool(tool.id)
+                  if (tool.id === 'bucket') {
+                    setActiveColorSlot('fill')
+                    if (currentFillColor === 'transparent') {
+                      onChangeFillColor?.(currentColor)
+                    }
+                    setColorPickerOpen(true)
+                  }
+                }}
                 data-active={isActive}
                 title={`${tool.label} (${tool.shortcut})`}
                 aria-label={tool.label}
@@ -654,16 +676,13 @@ export default function Toolbar({
           {/* Fill Button */}
           <button
             onClick={() => {
-              if (activeColorSlot === 'fill') {
-                handleOpenColorWheel()
-              } else {
-                setActiveColorSlot('fill')
-                if (currentFillColor === 'transparent') {
-                  onChangeFillColor?.(currentColor)
-                }
+              setActiveColorSlot('fill')
+              if (currentFillColor === 'transparent') {
+                onChangeFillColor?.(currentColor)
               }
+              setColorPickerOpen((prev) => !prev)
             }}
-            title="Color 2: Shape Fill Color (Click again to open Color Wheel)"
+            title="Fill with Color (Click to open Color & Wheel Picker)"
             className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeColorSlot === 'fill'
                 ? 'bg-white text-[#1971c2] shadow-xs border border-[#a5d8ff]'
@@ -728,18 +747,16 @@ export default function Toolbar({
 
           {/* Color Wheel / Custom Color Picker Button */}
           <div className="relative flex items-center">
-            <button
-              type="button"
-              onClick={handleOpenColorWheel}
+            <label
               title={`Open ${activeColorSlot === 'stroke' ? 'Stroke' : 'Fill'} Color Wheel Spectrum (Pick custom color)`}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all cursor-pointer border text-xs font-semibold ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all cursor-pointer border text-xs font-semibold relative overflow-hidden ${
                 isCustomColor
                   ? 'bg-[#e7f5ff] text-[#1971c2] border-[#a5d8ff] shadow-xs ring-1 ring-[#1971c2]'
                   : 'bg-white text-[#495057] hover:bg-[#f8f9fa] border-[#dee2e6] hover:text-[#1971c2]'
               }`}
             >
               <div
-                className="w-4 h-4 rounded-full border border-black/20 shadow-xs relative overflow-hidden flex items-center justify-center"
+                className="w-4 h-4 rounded-full border border-black/20 shadow-xs relative overflow-hidden flex items-center justify-center pointer-events-none"
                 style={{
                   background:
                     'conic-gradient(from 90deg, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff0080, #ff0000)',
@@ -757,32 +774,29 @@ export default function Toolbar({
                   }}
                 />
               </div>
-              <span className="text-[11px]">Wheel</span>
-            </button>
-
-            <input
-              ref={colorInputRef}
-              type="color"
-              value={
-                (activeColorSlot === 'stroke' ? currentColor : currentFillColor).startsWith(
-                  '#'
-                ) &&
-                (activeColorSlot === 'stroke' ? currentColor : currentFillColor).length === 7
-                  ? activeColorSlot === 'stroke'
-                    ? currentColor
-                    : currentFillColor
-                  : '#000000'
-              }
-              onChange={(e) => {
-                if (activeColorSlot === 'stroke') {
-                  onChangeColor(e.target.value)
-                } else {
-                  onChangeFillColor?.(e.target.value)
+              <span className="text-[11px] pointer-events-none">Wheel</span>
+              <input
+                type="color"
+                value={
+                  (activeColorSlot === 'stroke' ? currentColor : currentFillColor).startsWith(
+                    '#'
+                  ) &&
+                  (activeColorSlot === 'stroke' ? currentColor : currentFillColor).length === 7
+                    ? activeColorSlot === 'stroke'
+                      ? currentColor
+                      : currentFillColor
+                    : '#1971c2'
                 }
-              }}
-              className="absolute inset-0 opacity-0 w-full h-full pointer-events-none"
-              tabIndex={-1}
-            />
+                onChange={(e) => {
+                  if (activeColorSlot === 'stroke') {
+                    onChangeColor(e.target.value)
+                  } else {
+                    onChangeFillColor?.(e.target.value)
+                  }
+                }}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+              />
+            </label>
           </div>
 
           {activeColorSlot === 'fill' && (
@@ -827,6 +841,219 @@ export default function Toolbar({
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Color & Wheel Popover (Opens when Fill or Color is clicked) */}
+      {colorPickerOpen && (
+        <div
+          ref={colorPickerRef}
+          className="mt-2 mx-auto w-80 p-3.5 rounded-2xl bg-white/98 backdrop-blur-xl border border-[#dee2e6] shadow-[0_12px_36px_-6px_rgba(0,0,0,0.18)] z-50 text-xs animate-in fade-in zoom-in-95 duration-150 select-none"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-[#f1f3f5]">
+            <div className="flex items-center gap-1.5 font-bold text-[#212529]">
+              <div
+                className="w-3.5 h-3.5 rounded-full border border-black/20 shadow-xs relative overflow-hidden"
+                style={{
+                  backgroundColor:
+                    activeColorSlot === 'stroke'
+                      ? currentColor
+                      : currentFillColor === 'transparent'
+                      ? '#ffffff'
+                      : currentFillColor,
+                }}
+              >
+                {activeColorSlot === 'fill' && currentFillColor === 'transparent' && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-full h-0.5 bg-red-500 rotate-45 transform" />
+                  </div>
+                )}
+              </div>
+              <span>
+                {activeColorSlot === 'stroke' ? 'Stroke (Outline) Color' : 'Fill Color'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setColorPickerOpen(false)}
+              className="w-5 h-5 rounded-md hover:bg-[#f1f3f5] text-[#868e96] hover:text-[#212529] flex items-center justify-center text-xs cursor-pointer font-bold"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Mode Switcher */}
+          <div className="grid grid-cols-2 gap-1 p-0.5 bg-[#f1f3f5] rounded-xl mb-3">
+            <button
+              type="button"
+              onClick={() => setActiveColorSlot('stroke')}
+              className={`py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeColorSlot === 'stroke'
+                  ? 'bg-white text-[#1971c2] shadow-xs'
+                  : 'text-[#868e96]'
+              }`}
+            >
+              Stroke (Outline)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveColorSlot('fill')
+                if (currentFillColor === 'transparent') {
+                  onChangeFillColor?.(currentColor)
+                }
+              }}
+              className={`py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeColorSlot === 'fill'
+                  ? 'bg-white text-[#1971c2] shadow-xs'
+                  : 'text-[#868e96]'
+              }`}
+            >
+              Fill (Shape)
+            </button>
+          </div>
+
+          {/* Prominent Rainbow Color Wheel Spectrum Button */}
+          <div className="mb-3">
+            <div className="text-[11px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span>Color Wheel & Spectrum</span>
+              <span className="text-[10px] text-[#1971c2] font-semibold">Click to open 🎨</span>
+            </div>
+            <label
+              className="w-full h-11 rounded-xl p-1 border border-[#dee2e6] shadow-xs cursor-pointer hover:border-[#1971c2] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-between px-3 group relative overflow-hidden"
+              style={{
+                background:
+                  'linear-gradient(to right, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff0080, #ff0000)',
+              }}
+            >
+              <div className="bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg font-bold text-[#212529] shadow-xs flex items-center gap-2 text-xs pointer-events-none">
+                <div
+                  className="w-4 h-4 rounded-full border border-black/20 shadow-xs"
+                  style={{
+                    backgroundColor:
+                      activeColorSlot === 'stroke'
+                        ? currentColor
+                        : currentFillColor === 'transparent'
+                        ? '#ffffff'
+                        : currentFillColor,
+                  }}
+                />
+                <span>Open Color Wheel 🎨</span>
+              </div>
+              <span className="text-white drop-shadow-md text-[11px] font-bold uppercase tracking-wider group-hover:underline pointer-events-none">
+                Pick Custom →
+              </span>
+              <input
+                type="color"
+                value={
+                  (activeColorSlot === 'stroke' ? currentColor : currentFillColor).startsWith(
+                    '#'
+                  ) &&
+                  (activeColorSlot === 'stroke' ? currentColor : currentFillColor).length === 7
+                    ? activeColorSlot === 'stroke'
+                      ? currentColor
+                      : currentFillColor
+                    : '#1971c2'
+                }
+                onChange={(e) => {
+                  if (activeColorSlot === 'stroke') {
+                    onChangeColor(e.target.value)
+                  } else {
+                    onChangeFillColor?.(e.target.value)
+                  }
+                }}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+              />
+            </label>
+          </div>
+
+          {/* Hex Code Input Row */}
+          <div className="flex items-center gap-2 mb-3 bg-[#f8f9fa] p-1.5 rounded-xl border border-[#e9ecef]">
+            <div
+              className="w-6 h-6 rounded-lg border border-black/15 shadow-xs shrink-0"
+              style={{
+                backgroundColor:
+                  activeColorSlot === 'stroke'
+                    ? currentColor
+                    : currentFillColor === 'transparent'
+                    ? '#ffffff'
+                    : currentFillColor,
+              }}
+            />
+            <div className="flex-1 flex items-center bg-white px-2 py-0.5 rounded-lg border border-[#dee2e6] shadow-2xs">
+              <span className="text-[#868e96] font-mono text-xs select-none">#</span>
+              <input
+                type="text"
+                value={(activeColorSlot === 'stroke' ? currentColor : currentFillColor).replace('#', '')}
+                onChange={(e) => {
+                  const hex = '#' + e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6)
+                  if (activeColorSlot === 'stroke') {
+                    onChangeColor(hex)
+                  } else {
+                    onChangeFillColor?.(hex)
+                  }
+                }}
+                placeholder="1971c2"
+                maxLength={6}
+                className="w-full bg-transparent font-mono text-xs text-[#212529] font-semibold outline-none px-1"
+              />
+            </div>
+            <span className="text-[10px] text-[#868e96] font-medium pr-1 select-none">HEX</span>
+          </div>
+
+          {/* Palette Swatches */}
+          <div className="mb-3">
+            <div className="text-[11px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5">
+              Preset Palette
+            </div>
+            <div className="grid grid-cols-6 gap-1.5">
+              {COLORS.map((c) => {
+                const isSelected =
+                  activeColorSlot === 'stroke' ? currentColor === c : currentFillColor === c
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => {
+                      if (activeColorSlot === 'stroke') {
+                        onChangeColor(c)
+                      } else {
+                        onChangeFillColor?.(c)
+                      }
+                    }}
+                    className="w-full h-7 rounded-lg border transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center"
+                    style={{
+                      backgroundColor: c,
+                      borderColor: isSelected ? '#1971c2' : '#dee2e6',
+                      boxShadow: isSelected
+                        ? '0 0 0 2px white inset, 0 0 0 2px #1971c2'
+                        : 'none',
+                    }}
+                  />
+                )
+              })}
+            </div>
+          </div>
+
+          {/* No Fill Option */}
+          {activeColorSlot === 'fill' && (
+            <button
+              type="button"
+              onClick={() => {
+                onChangeFillColor?.('transparent')
+                setColorPickerOpen(false)
+              }}
+              className="w-full py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs transition-all cursor-pointer mb-2.5"
+            >
+              Set Transparent (No Fill) ✕
+            </button>
+          )}
+
+          {/* Bottom Instruction Banner */}
+          <div className="p-2 rounded-xl bg-[#e7f5ff] border border-[#a5d8ff] text-[#1971c2] text-[11px] font-semibold text-center flex items-center justify-center gap-1">
+            <span>💡 Double-click any shape on canvas to fill!</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
