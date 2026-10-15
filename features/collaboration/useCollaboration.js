@@ -32,6 +32,8 @@ export function useCollaboration(
     onReaction,
     onPresenterUpdate,
     onChatMessage,
+    onVoicePresence,
+    onVoiceSignal,
     isHost = false,
     currentElements = [],
     boardTitle = '',
@@ -46,6 +48,8 @@ export function useCollaboration(
   const onReactionRef = useRef(onReaction)
   const onPresenterUpdateRef = useRef(onPresenterUpdate)
   const onChatMessageRef = useRef(onChatMessage)
+  const onVoicePresenceRef = useRef(onVoicePresence)
+  const onVoiceSignalRef = useRef(onVoiceSignal)
   const currentElementsRef = useRef(currentElements)
   const boardTitleRef = useRef(boardTitle)
 
@@ -60,6 +64,8 @@ export function useCollaboration(
   onReactionRef.current = onReaction
   onPresenterUpdateRef.current = onPresenterUpdate
   onChatMessageRef.current = onChatMessage
+  onVoicePresenceRef.current = onVoicePresence
+  onVoiceSignalRef.current = onVoiceSignal
 
   // Stable local user identity (lazy initialized on first client render)
   const [currentUser, setCurrentUser] = useState(() => {
@@ -298,6 +304,16 @@ export function useCollaboration(
           case 'chat': {
             if (payload.senderId === currentUser.id) return
             onChatMessageRef.current?.(payload)
+            break
+          }
+
+          case 'voice_presence': {
+            onVoicePresenceRef.current?.(payload)
+            break
+          }
+
+          case 'voice_signal': {
+            onVoiceSignalRef.current?.(payload)
             break
           }
 
@@ -588,6 +604,34 @@ export function useCollaboration(
     [cleanRoom, currentUser]
   )
 
+  /**
+   * Broadcast voice call presence and speaking status.
+   */
+  const broadcastVoicePresence = useCallback(
+    (presencePayload) => {
+      if (!clientRef.current?.connected) return
+      clientRef.current.publish(
+        `syncboard/v2/room/${cleanRoom}/voice_presence`,
+        JSON.stringify(presencePayload)
+      )
+    },
+    [cleanRoom]
+  )
+
+  /**
+   * Broadcast WebRTC peer-to-peer signaling message (offer, answer, candidate).
+   */
+  const broadcastVoiceSignal = useCallback(
+    (signalPayload) => {
+      if (!clientRef.current?.connected) return
+      clientRef.current.publish(
+        `syncboard/v2/room/${cleanRoom}/voice_signal`,
+        JSON.stringify(signalPayload)
+      )
+    },
+    [cleanRoom]
+  )
+
   return {
     currentUser,
     collaborators,
@@ -603,5 +647,7 @@ export function useCollaboration(
     broadcastReaction,
     broadcastPresenterView,
     broadcastChatMessage,
+    broadcastVoicePresence,
+    broadcastVoiceSignal,
   }
 }

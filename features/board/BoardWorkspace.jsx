@@ -21,6 +21,8 @@ import AiDiagramModal from '@/components/AiDiagramModal'
 import ChatDrawer from '@/components/ChatDrawer'
 import ReactionOverlay from '@/components/ReactionOverlay'
 import ReactionPicker, { EMOJI_LIST } from '@/components/ReactionPicker'
+import { useVoiceChat } from '@/features/collaboration/useVoiceChat'
+import VoiceCallBar from '@/components/VoiceCallBar'
 import { screenToWorld } from './viewport'
 import Canvas from './Canvas'
 
@@ -185,6 +187,8 @@ export default function BoardWorkspace({ roomId }) {
   }, [saveBoard])
 
   // 8. Collaboration Hook (Resilient WebSocket Multiplayer Engine)
+  const voiceHandlerRef = useRef(null)
+
   const {
     currentUser,
     collaborators,
@@ -197,6 +201,8 @@ export default function BoardWorkspace({ roomId }) {
     broadcastReaction,
     broadcastPresenterView,
     broadcastChatMessage,
+    broadcastVoicePresence,
+    broadcastVoiceSignal,
     isKicked,
     kickCollaborator,
   } = useCollaboration(roomId, {
@@ -206,6 +212,8 @@ export default function BoardWorkspace({ roomId }) {
     onRemoteElementsChange: handleRemoteElementsChange,
     onRemoteElementsDelete: handleRemoteElementsDelete,
     onRemoteElementsClear: handleRemoteElementsClear,
+    onVoicePresence: (payload) => voiceHandlerRef.current?.handleVoicePresence(payload),
+    onVoiceSignal: (payload) => voiceHandlerRef.current?.handleVoiceSignal(payload),
     onRemoteTitleChange: (newTitle) => {
       setBoardTitle(newTitle)
     },
@@ -276,6 +284,26 @@ export default function BoardWorkspace({ roomId }) {
       })
     },
   })
+
+  // 9. WebRTC Live Voice Chat Engine
+  const {
+    isJoined: isVoiceJoined,
+    isMuted: isVoiceMuted,
+    isSpeaking: isVoiceSpeaking,
+    voiceUsers,
+    voiceCount,
+    joinVoice,
+    leaveVoice,
+    toggleMute: toggleVoiceMute,
+    handleVoicePresence,
+    handleVoiceSignal,
+  } = useVoiceChat({
+    currentUser,
+    broadcastVoicePresence,
+    broadcastVoiceSignal,
+  })
+
+  voiceHandlerRef.current = { handleVoicePresence, handleVoiceSignal }
 
   // Broadcast viewport changes and presence pulse when in Presenter mode
   useEffect(() => {
@@ -692,6 +720,14 @@ export default function BoardWorkspace({ roomId }) {
         followingUser={followingUser}
         onStopFollowing={handleStopFollowing}
         isHost={isHost}
+        isVoiceJoined={isVoiceJoined}
+        isVoiceMuted={isVoiceMuted}
+        isVoiceSpeaking={isVoiceSpeaking}
+        voiceUsers={voiceUsers}
+        voiceCount={voiceCount}
+        onJoinVoice={joinVoice}
+        onLeaveVoice={leaveVoice}
+        onToggleVoiceMute={toggleVoiceMute}
       />
 
       {/* 2. Paint-Style Ribbon Toolbar */}
@@ -892,6 +928,18 @@ export default function BoardWorkspace({ roomId }) {
         onSendMessage={handleSendMessage}
         currentUser={currentUser}
         unreadCount={unreadCount}
+      />
+
+      {/* 10. Live WebRTC Voice Call Floating HUD */}
+      <VoiceCallBar
+        isJoined={isVoiceJoined}
+        isMuted={isVoiceMuted}
+        isSpeaking={isVoiceSpeaking}
+        voiceUsers={voiceUsers}
+        currentUser={currentUser}
+        onJoinVoice={joinVoice}
+        onLeaveVoice={leaveVoice}
+        onToggleMute={toggleVoiceMute}
       />
 
       {/* 7. Kicked Out Overlay for Removed User */}

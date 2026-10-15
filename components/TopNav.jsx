@@ -13,6 +13,9 @@ import {
   Check,
   Sparkles,
   Radio,
+  Mic,
+  MicOff,
+  PhoneOff,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -57,6 +60,14 @@ export default function TopNav({
   followingUser = null,
   onStopFollowing,
   isHost = false,
+  isVoiceJoined = false,
+  isVoiceMuted = false,
+  isVoiceSpeaking = false,
+  voiceUsers = {},
+  voiceCount = 0,
+  onJoinVoice,
+  onLeaveVoice,
+  onToggleVoiceMute,
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState(boardTitle)
@@ -228,6 +239,53 @@ export default function TopNav({
           <span className="hidden sm:inline">{isPresenter ? 'Broadcasting' : 'Present'}</span>
         </button>
 
+        {/* Live WebRTC Voice Call Pill */}
+        {isVoiceJoined ? (
+          <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-300 rounded-lg p-0.5 shadow-xs">
+            <button
+              onClick={onToggleVoiceMute}
+              className={`px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                isVoiceMuted
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              }`}
+              title={isVoiceMuted ? 'Unmute Mic' : 'Mute Mic'}
+            >
+              {isVoiceMuted ? (
+                <MicOff className="w-3.5 h-3.5 text-red-600" />
+              ) : (
+                <Mic className={`w-3.5 h-3.5 text-white ${isVoiceSpeaking ? 'animate-bounce' : ''}`} />
+              )}
+              <span className="hidden sm:inline">{isVoiceMuted ? 'Muted' : 'Voice'}</span>
+            </button>
+            <button
+              onClick={onLeaveVoice}
+              className="p-1 rounded-md text-red-600 hover:bg-red-100 transition-colors cursor-pointer"
+              title="Leave Voice Call"
+            >
+              <PhoneOff className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onJoinVoice}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+              voiceCount > 0
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
+                : 'border border-[#dee2e6] hover:bg-emerald-50 hover:text-emerald-700 text-[#495057]'
+            }`}
+            title="Join Live WebRTC Voice Call with collaborators"
+          >
+            <Mic className={`w-3.5 h-3.5 ${voiceCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+            <span className="hidden sm:inline">Voice</span>
+            {voiceCount > 0 && (
+              <span className="bg-white/30 text-white px-1.5 py-0.2 rounded-full text-[10px] font-bold">
+                {voiceCount}
+              </span>
+            )}
+          </button>
+        )}
+
         {/* Invite / Share Button */}
         <button
           onClick={onOpenInvite}
@@ -248,18 +306,27 @@ export default function TopNav({
         >
           {/* Current user avatar */}
           <div
-            className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-xs ${
+            className={`relative w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-xs ${
               isPresenter ? 'ring-2 ring-rose-500 ring-offset-1' : ''
-            }`}
+            } ${isVoiceSpeaking ? 'ring-2 ring-emerald-400 ring-offset-1 animate-pulse' : ''}`}
             style={{ backgroundColor: currentUser?.color || '#1971c2' }}
             title={isHost ? `You (Host 👑)` : `You (${currentUser?.name})`}
           >
             {currentUser?.name?.[0] || 'Y'}
+            {isVoiceJoined && isVoiceMuted && (
+              <span className="absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 border border-white flex items-center justify-center text-[6px]">
+                ✕
+              </span>
+            )}
           </div>
 
           {/* Connected peers */}
           {collaborators.map((peer) => {
             const isPeerPresenting = activePresenter?.userId === peer.id
+            const peerVoice = voiceUsers[peer.id]
+            const isPeerSpeaking = peerVoice?.isSpeaking
+            const isPeerMuted = peerVoice?.isMuted
+
             return (
               <div
                 key={peer.id}
@@ -269,17 +336,24 @@ export default function TopNav({
                     onFollowPresenter?.(activePresenter)
                   }
                 }}
-                className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-xs animate-in fade-in transition-transform hover:scale-110 ${
+                className={`relative w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-xs animate-in fade-in transition-transform hover:scale-110 ${
                   isPeerPresenting ? 'ring-2 ring-rose-500 ring-offset-1 animate-pulse' : ''
-                }`}
+                } ${isPeerSpeaking ? 'ring-2 ring-emerald-400 ring-offset-1 animate-pulse' : ''}`}
                 style={{ backgroundColor: peer.color || '#2f9e44' }}
                 title={
                   isPeerPresenting
                     ? `${peer.name} is Presenting! (Click to follow)`
+                    : peerVoice
+                    ? `${peer.name} (In Voice: ${isPeerMuted ? 'Muted' : isPeerSpeaking ? 'Speaking' : 'Listening'})`
                     : `${peer.name} (Online)`
                 }
               >
                 {peer.name?.[0] || 'C'}
+                {peerVoice && isPeerMuted && (
+                  <span className="absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 border border-white flex items-center justify-center text-[6px]">
+                    ✕
+                  </span>
+                )}
               </div>
             )
           })}
