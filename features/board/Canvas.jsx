@@ -391,12 +391,12 @@ export default function Canvas({
       }
     }
 
-    // 2. Double-Click detection on any element across ALL tools (double click to select/move)
+    // 2. Double-Click detection on any element across ALL tools (Double-click any shape to fill it!)
     const now = Date.now()
     const currentList = elementsRef.current || elements || []
-    const hitUnderPointer = findElementAtPoint(world.x, world.y, currentList, 10 / viewport.zoom)
+    const hitUnderPointer = findElementAtPoint(world.x, world.y, currentList, 14 / viewport.zoom)
     const isDouble =
-      now - lastClickTimeRef.current < 400 &&
+      now - lastClickTimeRef.current < 450 &&
       hitUnderPointer &&
       hitUnderPointer.id === lastClickedElementIdRef.current
 
@@ -404,14 +404,36 @@ export default function Canvas({
     lastClickedElementIdRef.current = hitUnderPointer ? hitUnderPointer.id : null
 
     if (isDouble && hitUnderPointer) {
-      onSelectElement(hitUnderPointer)
-      onSelectTool?.('select')
-      interactionModeRef.current = 'drag-element'
-      dragOffsetRef.current = {
-        x: world.x - (hitUnderPointer.x ?? hitUnderPointer.x1 ?? 0),
-        y: world.y - (hitUnderPointer.y ?? hitUnderPointer.y1 ?? 0),
+      if (hitUnderPointer.type === 'text' || hitUnderPointer.type === 'sticky') {
+        onSelectElement(hitUnderPointer)
+        onSelectTool?.('select')
+        setEditingText({
+          id: hitUnderPointer.id,
+          x: hitUnderPointer.x,
+          y: hitUnderPointer.y,
+          width: hitUnderPointer.width,
+          height: hitUnderPointer.height,
+          text: hitUnderPointer.text || '',
+          type: hitUnderPointer.type,
+        })
+        needsRepaintRef.current = true
+        return
       }
-      if (canvasRef.current) canvasRef.current.style.cursor = 'move'
+
+      // Any shape or stroke: Double-click fills with active color!
+      const fillToApply = currentFillColor === 'transparent' ? currentColor : currentFillColor
+      const updated = currentList.map((el) => {
+        if (el.id !== hitUnderPointer.id) return el
+        if (LINE_SHAPES.includes(el.type)) {
+          return { ...el, color: fillToApply }
+        }
+        return { ...el, fillColor: fillToApply }
+      })
+      elementsRef.current = updated
+      onElementsChange(updated)
+      if (selectedElement && selectedElement.id === hitUnderPointer.id) {
+        onSelectElement({ ...selectedElement, fillColor: fillToApply })
+      }
       needsRepaintRef.current = true
       return
     }
@@ -1008,7 +1030,7 @@ export default function Canvas({
     }
   }
 
-  // 8. Double Click to edit Text/Sticky or select Shape to move
+  // 8. Double Click to edit Text/Sticky or fill Shape with color
   const handleDoubleClick = (e) => {
     const rect = canvasRef.current.getBoundingClientRect()
     const screenX = e.clientX - rect.left
@@ -1016,12 +1038,11 @@ export default function Canvas({
     const world = screenToWorld(screenX, screenY, viewport)
 
     const current = elementsRef.current || elements || []
-    const hit = findElementAtPoint(world.x, world.y, current, 10 / viewport.zoom)
+    const hit = findElementAtPoint(world.x, world.y, current, 14 / viewport.zoom)
     if (hit) {
-      onSelectElement(hit)
-      onSelectTool?.('select')
-
       if (hit.type === 'text' || hit.type === 'sticky') {
+        onSelectElement(hit)
+        onSelectTool?.('select')
         setEditingText({
           id: hit.id,
           x: hit.x,
@@ -1031,6 +1052,21 @@ export default function Canvas({
           text: hit.text || '',
           type: hit.type,
         })
+      } else {
+        // Double-click to fill any shape or pen stroke!
+        const fillToApply = currentFillColor === 'transparent' ? currentColor : currentFillColor
+        const updated = current.map((el) => {
+          if (el.id !== hit.id) return el
+          if (LINE_SHAPES.includes(el.type)) {
+            return { ...el, color: fillToApply }
+          }
+          return { ...el, fillColor: fillToApply }
+        })
+        elementsRef.current = updated
+        onElementsChange(updated)
+        if (selectedElement && selectedElement.id === hit.id) {
+          onSelectElement({ ...selectedElement, fillColor: fillToApply })
+        }
       }
       needsRepaintRef.current = true
     }

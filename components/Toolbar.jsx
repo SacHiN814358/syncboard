@@ -204,6 +204,19 @@ export default function Toolbar({
   const [selectedShapeId, setSelectedShapeId] = useState('rectangle')
   const shapesDropdownRef = useRef(null)
   const fileInputRef = useRef(null)
+  const colorInputRef = useRef(null)
+
+  const handleOpenColorWheel = () => {
+    try {
+      if (colorInputRef.current?.showPicker) {
+        colorInputRef.current.showPicker()
+      } else {
+        colorInputRef.current?.click()
+      }
+    } catch (_) {
+      colorInputRef.current?.click()
+    }
+  }
 
   // Track if activeTool is one of the shapes
   const isShapeActive = SHAPES_LIST.some((s) => s.id === activeTool)
@@ -640,8 +653,17 @@ export default function Toolbar({
 
           {/* Fill Button */}
           <button
-            onClick={() => setActiveColorSlot('fill')}
-            title="Color 2: Shape Fill Color"
+            onClick={() => {
+              if (activeColorSlot === 'fill') {
+                handleOpenColorWheel()
+              } else {
+                setActiveColorSlot('fill')
+                if (currentFillColor === 'transparent') {
+                  onChangeFillColor?.(currentColor)
+                }
+              }
+            }}
+            title="Color 2: Shape Fill Color (Click again to open Color Wheel)"
             className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeColorSlot === 'fill'
                 ? 'bg-white text-[#1971c2] shadow-xs border border-[#a5d8ff]'
@@ -704,62 +726,70 @@ export default function Toolbar({
 
           <div className="w-px h-4 bg-[#e9ecef] mx-0.5" />
 
-          {/* Color Wheel / Custom Color Picker */}
+          {/* Color Wheel / Custom Color Picker Button */}
           <div className="relative flex items-center">
-            <label
-              title={`Custom ${activeColorSlot === 'stroke' ? 'Stroke' : 'Fill'} Color Picker`}
-              className={`relative w-5.5 h-5.5 rounded-full cursor-pointer flex items-center justify-center border shadow-xs hover:scale-115 active:scale-95 transition-all overflow-hidden ${
+            <button
+              type="button"
+              onClick={handleOpenColorWheel}
+              title={`Open ${activeColorSlot === 'stroke' ? 'Stroke' : 'Fill'} Color Wheel Spectrum (Pick custom color)`}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all cursor-pointer border text-xs font-semibold ${
                 isCustomColor
-                  ? 'ring-2 ring-[#1971c2] ring-offset-1 border-[#1971c2]'
-                  : 'border-[#ced4da]'
+                  ? 'bg-[#e7f5ff] text-[#1971c2] border-[#a5d8ff] shadow-xs ring-1 ring-[#1971c2]'
+                  : 'bg-white text-[#495057] hover:bg-[#f8f9fa] border-[#dee2e6] hover:text-[#1971c2]'
               }`}
-              style={{
-                background:
-                  'conic-gradient(from 90deg, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff0080, #ff0000)',
-              }}
             >
-              {/* Inner preview circle showing active color */}
               <div
-                className="w-2.5 h-2.5 rounded-full border border-white/90 shadow-xs relative overflow-hidden"
+                className="w-4 h-4 rounded-full border border-black/20 shadow-xs relative overflow-hidden flex items-center justify-center"
                 style={{
-                  backgroundColor:
-                    activeColorSlot === 'stroke'
-                      ? currentColor
-                      : currentFillColor === 'transparent'
-                      ? '#ffffff'
-                      : currentFillColor,
+                  background:
+                    'conic-gradient(from 90deg, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff0080, #ff0000)',
                 }}
               >
-                {activeColorSlot === 'fill' && currentFillColor === 'transparent' && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-full h-0.5 bg-red-500 rotate-45 transform" />
-                  </div>
-                )}
+                <div
+                  className="w-1.5 h-1.5 rounded-full border border-white/90 shadow-xs"
+                  style={{
+                    backgroundColor:
+                      activeColorSlot === 'stroke'
+                        ? currentColor
+                        : currentFillColor === 'transparent'
+                        ? '#ffffff'
+                        : currentFillColor,
+                  }}
+                />
               </div>
-              <input
-                type="color"
-                value={
-                  (activeColorSlot === 'stroke' ? currentColor : currentFillColor).startsWith(
-                    '#'
-                  ) &&
-                  (activeColorSlot === 'stroke' ? currentColor : currentFillColor).length === 7
-                    ? activeColorSlot === 'stroke'
-                      ? currentColor
-                      : currentFillColor
-                    : '#000000'
+              <span className="text-[11px]">Wheel</span>
+            </button>
+
+            <input
+              ref={colorInputRef}
+              type="color"
+              value={
+                (activeColorSlot === 'stroke' ? currentColor : currentFillColor).startsWith(
+                  '#'
+                ) &&
+                (activeColorSlot === 'stroke' ? currentColor : currentFillColor).length === 7
+                  ? activeColorSlot === 'stroke'
+                    ? currentColor
+                    : currentFillColor
+                  : '#000000'
+              }
+              onChange={(e) => {
+                if (activeColorSlot === 'stroke') {
+                  onChangeColor(e.target.value)
+                } else {
+                  onChangeFillColor?.(e.target.value)
                 }
-                onChange={(e) => {
-                  if (activeColorSlot === 'stroke') {
-                    onChangeColor(e.target.value)
-                  } else {
-                    onChangeFillColor?.(e.target.value)
-                  }
-                }}
-                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                title={`Pick any custom ${activeColorSlot} color`}
-              />
-            </label>
+              }}
+              className="absolute inset-0 opacity-0 w-full h-full pointer-events-none"
+              tabIndex={-1}
+            />
           </div>
+
+          {activeColorSlot === 'fill' && (
+            <span className="text-[10px] text-[#1971c2] font-semibold bg-[#e7f5ff] px-2 py-0.5 rounded-md hidden xl:inline-flex items-center gap-1 border border-[#a5d8ff]/60 select-none">
+              Double-click shape to fill 🎨
+            </span>
+          )}
 
           {/* EyeDropper Screen Color Picker (if supported) */}
           {hasEyeDropper && (

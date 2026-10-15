@@ -187,31 +187,32 @@ export default function PropertiesPanel({
               <span className="text-[11px] font-semibold text-[#868e96] uppercase tracking-wider">
                 Fill Color
               </span>
-              {currentFillColor !== 'transparent' && (
-                <label
-                  title={`Custom Fill Color Picker (${currentFillColor})`}
-                  className="relative w-5 h-5 rounded-full cursor-pointer flex items-center justify-center border border-[#dee2e6] hover:scale-110 active:scale-95 transition-transform overflow-hidden shadow-xs"
+              <label
+                title={`Custom Fill Color Picker (${currentFillColor})`}
+                className="relative w-5 h-5 rounded-full cursor-pointer flex items-center justify-center border border-[#dee2e6] hover:scale-110 active:scale-95 transition-transform overflow-hidden shadow-xs"
+                style={{
+                  background:
+                    'conic-gradient(from 90deg, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff0080, #ff0000)',
+                }}
+              >
+                <div
+                  className="w-2 h-2 rounded-full border border-white/90"
                   style={{
-                    background:
-                      'conic-gradient(from 90deg, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff0080, #ff0000)',
+                    backgroundColor:
+                      currentFillColor === 'transparent' ? '#ffffff' : currentFillColor,
                   }}
-                >
-                  <div
-                    className="w-2 h-2 rounded-full border border-white/90"
-                    style={{ backgroundColor: currentFillColor }}
-                  />
-                  <input
-                    type="color"
-                    value={
-                      currentFillColor.startsWith('#') && currentFillColor.length === 7
-                        ? currentFillColor
-                        : '#ffffff'
-                    }
-                    onChange={(e) => onChangeFillColor(e.target.value)}
-                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                  />
-                </label>
-              )}
+                />
+                <input
+                  type="color"
+                  value={
+                    currentFillColor.startsWith('#') && currentFillColor.length === 7
+                      ? currentFillColor
+                      : '#1971c2'
+                  }
+                  onChange={(e) => onChangeFillColor(e.target.value)}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                />
+              </label>
             </div>
 
             {/* Fill Mode Switcher */}
