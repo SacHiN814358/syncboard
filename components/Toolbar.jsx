@@ -38,6 +38,7 @@ import {
   Smile,
   Pipette,
   ChevronDown,
+  FileText,
 } from 'lucide-react'
 import { COLORS, STROKE_WIDTHS } from '@/features/board/elements'
 
@@ -194,6 +195,7 @@ export default function Toolbar({
   reactionsOpen = false,
   onToggleReactions,
   onUploadImage,
+  onOpenPdfModal,
 }) {
   const [activeColorSlot, setActiveColorSlot] = useState('stroke') // 'stroke' | 'fill'
   const isCustomColor = !COLORS.includes(
@@ -620,6 +622,20 @@ export default function Toolbar({
                 }
               }}
             />
+          </button>
+
+          {/* Import PDF Tool */}
+          <button
+            onClick={onOpenPdfModal}
+            title="Import & Annotate PDF Document or Slides"
+            aria-label="Import PDF"
+            className="toolbar-btn group relative"
+          >
+            <FileText className="w-4 h-4 text-red-500" />
+            <span className="hidden group-hover:flex tooltip-enter absolute -bottom-9 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-[#212529] text-white text-[11px] font-medium whitespace-nowrap shadow-md pointer-events-none z-50 items-center gap-1">
+              <span>Import PDF</span>
+              <span className="text-red-400 text-[10px]">(Slides)</span>
+            </span>
           </button>
         </div>
 

@@ -16,6 +16,7 @@ import {
   Mic,
   MicOff,
   PhoneOff,
+  FileText,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -48,6 +49,7 @@ export default function TopNav({
   collaborators,
   currentUser,
   onOpenExport,
+  onOpenPdfModal,
   onOpenSqlModal,
   onOpenInvite,
   onOpenJoinCode,
@@ -367,6 +369,16 @@ export default function TopNav({
         >
           <RotateCcw className="w-3 h-3" />
           <span>{Math.round(zoom * 100)}%</span>
+        </button>
+
+        {/* Import PDF Button */}
+        <button
+          onClick={onOpenPdfModal}
+          className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg border border-[#e9ecef] hover:bg-red-50 hover:border-red-200 text-[#212529] hover:text-red-600 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+          title="Import & Annotate PDF Document or Slides"
+        >
+          <FileText className="w-3.5 h-3.5 text-red-500" />
+          <span className="hidden sm:inline">Import PDF</span>
         </button>
 
         {/* Export Button */}

@@ -18,6 +18,7 @@ import SqlHelpModal from '@/components/SqlHelpModal'
 import InviteModal from '@/components/InviteModal'
 import JoinCodeModal from '@/components/JoinCodeModal'
 import AiDiagramModal from '@/components/AiDiagramModal'
+import PdfImportModal from '@/components/PdfImportModal'
 import ChatDrawer from '@/components/ChatDrawer'
 import ReactionOverlay from '@/components/ReactionOverlay'
 import ReactionPicker, { EMOJI_LIST } from '@/components/ReactionPicker'
@@ -78,6 +79,7 @@ export default function BoardWorkspace({ roomId }) {
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [joinCodeModalOpen, setJoinCodeModalOpen] = useState(false)
   const [aiDiagramModalOpen, setAiDiagramModalOpen] = useState(false)
+  const [pdfModalOpen, setPdfModalOpen] = useState(false)
 
   // 6. Multi-User Live Drawing Previews & Reactions State
   const [remotePreviews, setRemotePreviews] = useState({})
@@ -573,6 +575,21 @@ export default function BoardWorkspace({ roomId }) {
     [elements, handleElementsChange]
   )
 
+  // Insert PDF document pages onto board
+  const handleImportPdfElements = useCallback(
+    (newPdfElements) => {
+      if (!newPdfElements || newPdfElements.length === 0) return
+      const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+      const updated = [...currentList, ...newPdfElements]
+      handleElementsChange(updated)
+      if (newPdfElements[0]) {
+        setSelectedElement(newPdfElements[0])
+      }
+      setActiveTool('select')
+    },
+    [elements, handleElementsChange]
+  )
+
   // Keyboard Shortcuts Listener
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -728,6 +745,7 @@ export default function BoardWorkspace({ roomId }) {
         onJoinVoice={joinVoice}
         onLeaveVoice={leaveVoice}
         onToggleVoiceMute={toggleVoiceMute}
+        onOpenPdfModal={() => setPdfModalOpen(true)}
       />
 
       {/* 2. Paint-Style Ribbon Toolbar */}
@@ -785,6 +803,7 @@ export default function BoardWorkspace({ roomId }) {
         reactionsOpen={reactionsPickerOpen}
         onToggleReactions={() => setReactionsPickerOpen((prev) => !prev)}
         onUploadImage={handleUploadImage}
+        onOpenPdfModal={() => setPdfModalOpen(true)}
       />
 
       {/* 3. Contextual Properties Panel */}
@@ -925,6 +944,13 @@ export default function BoardWorkspace({ roomId }) {
         isOpen={aiDiagramModalOpen}
         onClose={() => setAiDiagramModalOpen(false)}
         onInsertElements={handleInsertAiElements}
+        viewport={viewport}
+      />
+
+      <PdfImportModal
+        isOpen={pdfModalOpen}
+        onClose={() => setPdfModalOpen(false)}
+        onImportElements={handleImportPdfElements}
         viewport={viewport}
       />
 

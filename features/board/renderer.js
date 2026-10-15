@@ -294,7 +294,34 @@ export function drawImageElement(ctx, el) {
     imageCache.set(el.src, img)
   }
 
-  const r = 6 // slight rounded corner
+  const r = el.isPdfPage ? 4 : 6 // slight rounded corner
+
+  // Render realistic document drop shadow and page badge for PDF slides
+  if (el.isPdfPage) {
+    ctx.save()
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.09)'
+    ctx.shadowBlur = 14
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 4
+    ctx.fillStyle = '#ffffff'
+    ctx.beginPath()
+    ctx.roundRect(el.x, el.y, el.width, el.height, r)
+    ctx.fill()
+    ctx.restore()
+
+    if (el.pageNumber) {
+      ctx.save()
+      ctx.fillStyle = '#868e96'
+      ctx.font = 'bold 11px Inter, system-ui, sans-serif'
+      ctx.textBaseline = 'bottom'
+      ctx.fillText(
+        `📄 Page ${el.pageNumber} of ${el.totalPages || '?'}${el.fileName ? ` • ${el.fileName}` : ''}`,
+        el.x,
+        el.y - 6
+      )
+      ctx.restore()
+    }
+  }
 
   if (img.complete && img.naturalWidth > 0) {
     ctx.save()
@@ -306,7 +333,7 @@ export function drawImageElement(ctx, el) {
     ctx.restore()
 
     // Subtle crisp border
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'
+    ctx.strokeStyle = el.isPdfPage ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.1)'
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.roundRect(el.x, el.y, el.width, el.height, r)
