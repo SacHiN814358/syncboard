@@ -75,6 +75,7 @@ export default function Canvas({
   onCursorMove,
   onDrawPreview,
   remotePreviews,
+  isReadOnly = false,
 }) {
   const canvasRef = useRef(null)
 
@@ -312,6 +313,7 @@ export default function Canvas({
   // Clipboard Paste Handler (Ctrl+V Image Paste onto Canvas)
   useEffect(() => {
     const handlePaste = (e) => {
+      if (isReadOnly) return
       if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return
       const items = e.clipboardData?.items
       if (!items) return
@@ -370,6 +372,14 @@ export default function Canvas({
     pointerStartRef.current = { x: screenX, y: screenY, worldX: world.x, worldY: world.y }
     isInteractingRef.current = true
     dragUpdatedElementsRef.current = null
+
+    // Read-Only Enforcement: Canvas is strictly view-only, gestures pan the canvas
+    if (isReadOnly) {
+      interactionModeRef.current = 'pan'
+      lastPanPosRef.current = { x: e.clientX, y: e.clientY }
+      if (canvasRef.current) canvasRef.current.style.cursor = 'grabbing'
+      return
+    }
 
     // If switching to drawing or non-select tool, deselect previous element so handles don't interfere
     if (activeTool !== 'select' && selectedElement) {
@@ -710,6 +720,24 @@ export default function Canvas({
 
     // Broadcast cursor position for remote peers
     onCursorMove?.(world.x, world.y)
+
+    // Read-Only Viewer: Only smooth panning is allowed
+    if (isReadOnly) {
+      if (isInteractingRef.current && interactionModeRef.current === 'pan') {
+        const dx = e.clientX - lastPanPosRef.current.x
+        const dy = e.clientY - lastPanPosRef.current.y
+        lastPanPosRef.current = { x: e.clientX, y: e.clientY }
+        onViewportChange({
+          ...viewport,
+          panX: viewport.panX + dx,
+          panY: viewport.panY + dy,
+        })
+        needsRepaintRef.current = true
+      } else {
+        if (canvasRef.current) canvasRef.current.style.cursor = 'grab'
+      }
+      return
+    }
 
     // Hover cursor feedback when not dragging
     if (!isInteractingRef.current) {
@@ -1060,6 +1088,13 @@ export default function Canvas({
       }
     } catch (_) {}
 
+    if (isReadOnly) {
+      isInteractingRef.current = false
+      interactionModeRef.current = 'none'
+      if (canvasRef.current) canvasRef.current.style.cursor = 'grab'
+      return
+    }
+
     if (!isInteractingRef.current) return
     isInteractingRef.current = false
 
@@ -1138,6 +1173,7 @@ export default function Canvas({
 
   // 8. Double Click to edit Text/Sticky/Shape/Connector or fill Shape with color
   const handleDoubleClick = (e) => {
+    if (isReadOnly) return
     isInteractingRef.current = false
     interactionModeRef.current = 'none'
     dragUpdatedElementsRef.current = null
@@ -1420,12 +1456,19 @@ export default function Canvas({
         onDoubleClick={handleDoubleClick}
         className="w-full h-full block touch-none"
         style={{
-          cursor: activeTool === 'pan' ? 'grab' : activeTool === 'select' ? 'default' : 'crosshair',
+          cursor: isReadOnly
+            ? 'grab'
+            : activeTool === 'pan'
+            ? 'grab'
+            : activeTool === 'select'
+            ? 'default'
+            : 'crosshair',
         }}
       />
 
       {/* Miro-Style Quick-Add Connected Shape Handles */}
-      {selectedElement &&
+      {!isReadOnly &&
+        selectedElement &&
         activeTool === 'select' &&
         interactionModeRef.current === 'none' &&
         !editingText &&
@@ -1604,18 +1647,20 @@ export default function Canvas({
       )}
 
       {/* Grid Snapping Floating Toggle */}
-      <button
-        onClick={() => setGridSnap((prev) => !prev)}
-        title={gridSnap ? 'Grid Snapping Active (Click to disable)' : 'Grid Snapping Off (Click to enable)'}
-        className={`absolute bottom-5 right-5 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md shadow-md transition-all cursor-pointer border ${
-          gridSnap
-            ? 'bg-[#e7f5ff]/95 text-[#1971c2] border-[#a5d8ff]'
-            : 'bg-white/90 text-[#868e96] border-[#dee2e6] hover:text-[#495057]'
-        }`}
-      >
-        <Magnet className="w-3.5 h-3.5" />
-        <span>{gridSnap ? 'Grid Snap ON' : 'Grid Snap OFF'}</span>
-      </button>
+      {!isReadOnly && (
+        <button
+          onClick={() => setGridSnap((prev) => !prev)}
+          title={gridSnap ? 'Grid Snapping Active (Click to disable)' : 'Grid Snapping Off (Click to enable)'}
+          className={`absolute bottom-5 right-5 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md shadow-md transition-all cursor-pointer border ${
+            gridSnap
+              ? 'bg-[#e7f5ff]/95 text-[#1971c2] border-[#a5d8ff]'
+              : 'bg-white/90 text-[#868e96] border-[#dee2e6] hover:text-[#495057]'
+          }`}
+        >
+          <Magnet className="w-3.5 h-3.5" />
+          <span>{gridSnap ? 'Grid Snap ON' : 'Grid Snap OFF'}</span>
+        </button>
+      )}
     </div>
   )
 }

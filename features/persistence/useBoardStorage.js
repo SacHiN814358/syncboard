@@ -76,8 +76,26 @@ export function useBoardStorage(roomId) {
   const [boardTitle, setBoardTitle] = useState('Untitled Board')
   const [initialLoaded, setInitialLoaded] = useState(false)
   const [saveStatus, setSaveStatus] = useState('saved')
+  const [roomPassword, setRoomPasswordState] = useState(() => {
+    if (typeof window !== 'undefined' && roomId) {
+      return localStorage.getItem(`syncboard_pwd_${roomId.trim().toUpperCase()}`) || ''
+    }
+    return ''
+  })
   const saveTimeoutRef = useRef(null)
   const isPostgresReadyRef = useRef(false)
+
+  const setRoomPassword = useCallback((pwd) => {
+    const cleanRoom = (roomId || 'DEFAULT').trim().toUpperCase()
+    setRoomPasswordState(pwd || '')
+    if (typeof window !== 'undefined') {
+      if (pwd) {
+        localStorage.setItem(`syncboard_pwd_${cleanRoom}`, pwd)
+      } else {
+        localStorage.removeItem(`syncboard_pwd_${cleanRoom}`)
+      }
+    }
+  }, [roomId])
 
   // 1. Load initial board elements from cache or database
   const loadBoard = useCallback(async () => {
@@ -190,5 +208,7 @@ export function useBoardStorage(roomId) {
     saveStatus,
     loadBoard,
     saveBoard,
+    roomPassword,
+    setRoomPassword,
   }
 }

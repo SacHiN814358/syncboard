@@ -19,6 +19,7 @@ import InviteModal from '@/components/InviteModal'
 import JoinCodeModal from '@/components/JoinCodeModal'
 import AiDiagramModal from '@/components/AiDiagramModal'
 import PdfImportModal from '@/components/PdfImportModal'
+import PasswordModal from '@/components/PasswordModal'
 import ChatDrawer from '@/components/ChatDrawer'
 import ReactionOverlay from '@/components/ReactionOverlay'
 import ReactionPicker, { EMOJI_LIST } from '@/components/ReactionPicker'
@@ -42,6 +43,8 @@ export default function BoardWorkspace({ roomId }) {
     saveStatus,
     loadBoard,
     saveBoard,
+    roomPassword,
+    setRoomPassword,
   } = useBoardStorage(roomId)
 
   // 2. Document & Element State
@@ -80,6 +83,16 @@ export default function BoardWorkspace({ roomId }) {
   const [joinCodeModalOpen, setJoinCodeModalOpen] = useState(false)
   const [aiDiagramModalOpen, setAiDiagramModalOpen] = useState(false)
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
+
+  // Read-Only Viewer Mode State
+  const [isReadOnly, setIsReadOnly] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search)
+      if (searchParams.get('mode') === 'view') return true
+    }
+    return false
+  })
 
   // 6. Multi-User Live Drawing Previews & Reactions State
   const [remotePreviews, setRemotePreviews] = useState({})
@@ -113,6 +126,61 @@ export default function BoardWorkspace({ roomId }) {
       setIsHost(stored)
     }
   }, [roomId])
+
+  // Synchronize read-only status based on query parameter and room passcode
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const cleanRoom = (roomId || 'DEFAULT').trim().toUpperCase()
+    const searchParams = new URLSearchParams(window.location.search)
+    const modeParam = searchParams.get('mode')
+    const isSessionUnlocked = sessionStorage.getItem(`syncboard_unlocked_${cleanRoom}`) === 'true'
+    const isRoomHost = localStorage.getItem(`syncboard_host_${cleanRoom}`) === 'true'
+
+    if (modeParam === 'view') {
+      setIsReadOnly(true)
+      setSelectedElement(null)
+      return
+    }
+
+    if (roomPassword && !isRoomHost && !isSessionUnlocked) {
+      setIsReadOnly(true)
+      setSelectedElement(null)
+      return
+    }
+
+    setIsReadOnly(false)
+  }, [roomId, roomPassword, isHost])
+
+  // Unlock full edit permissions from viewer mode
+  const handleUnlockEditAccess = useCallback(
+    (enteredPassword) => {
+      const cleanRoom = (roomId || 'DEFAULT').trim().toUpperCase()
+
+      if (roomPassword) {
+        if (enteredPassword.trim() === roomPassword.trim()) {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(`syncboard_unlocked_${cleanRoom}`, 'true')
+            const url = new URL(window.location.href)
+            url.searchParams.delete('mode')
+            window.history.replaceState({}, '', url.toString())
+          }
+          setIsReadOnly(false)
+          return true
+        } else {
+          return false
+        }
+      } else {
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('mode')
+          window.history.replaceState({}, '', url.toString())
+        }
+        setIsReadOnly(false)
+        return true
+      }
+    },
+    [roomId, roomPassword]
+  )
 
   // Collaboration callbacks: Multi-laptop delta element synchronization
   const handleRemoteElementsChange = useCallback(
@@ -438,17 +506,19 @@ export default function BoardWorkspace({ roomId }) {
   // Commit element changes (Pushes to History + Saves to DB + Broadcasts to Peers)
   const handleElementsChange = useCallback(
     (newElements, deltaElements = null) => {
+      if (isReadOnly) return
       elementsRef.current = newElements
       setElements(newElements)
       historyRef.current.push(newElements)
       saveBoard(newElements)
       broadcastElementsUpdate(deltaElements || newElements, 'upsert')
     },
-    [saveBoard, broadcastElementsUpdate]
+    [isReadOnly, saveBoard, broadcastElementsUpdate]
   )
 
   // Undo
   const handleUndo = useCallback(() => {
+    if (isReadOnly) return
     const prev = historyRef.current.undo(elementsRef.current.length > 0 ? elementsRef.current : elements)
     if (prev) {
       elementsRef.current = prev
@@ -457,10 +527,11 @@ export default function BoardWorkspace({ roomId }) {
       broadcastElementsUpdate(prev, 'upsert')
       setSelectedElement(null)
     }
-  }, [elements, saveBoard, broadcastElementsUpdate])
+  }, [isReadOnly, elements, saveBoard, broadcastElementsUpdate])
 
   // Redo
   const handleRedo = useCallback(() => {
+    if (isReadOnly) return
     const next = historyRef.current.redo(elementsRef.current.length > 0 ? elementsRef.current : elements)
     if (next) {
       elementsRef.current = next
@@ -469,11 +540,11 @@ export default function BoardWorkspace({ roomId }) {
       broadcastElementsUpdate(next, 'upsert')
       setSelectedElement(null)
     }
-  }, [elements, saveBoard, broadcastElementsUpdate])
+  }, [isReadOnly, elements, saveBoard, broadcastElementsUpdate])
 
   // Delete selected element
   const handleDeleteSelected = useCallback(() => {
-    if (!selectedElement) return
+    if (isReadOnly || !selectedElement) return
     const idToDelete = selectedElement.id
     deletedIdsRef.current.add(idToDelete)
     setElements((prev) => {
@@ -486,12 +557,12 @@ export default function BoardWorkspace({ roomId }) {
     })
     broadcastElementDelete(idToDelete)
     setSelectedElement(null)
-  }, [selectedElement, broadcastElementDelete, saveBoard])
+  }, [isReadOnly, selectedElement, broadcastElementDelete, saveBoard])
 
   // Delete specific element (called by eraser or context)
   const handleDeleteElement = useCallback(
     (elementId) => {
-      if (!elementId) return
+      if (isReadOnly || !elementId) return
       deletedIdsRef.current.add(elementId)
       setElements((prev) => {
         const currentList = elementsRef.current.length > 0 ? elementsRef.current : prev
@@ -504,11 +575,12 @@ export default function BoardWorkspace({ roomId }) {
       broadcastElementDelete(elementId)
       setSelectedElement((sel) => (sel && sel.id === elementId ? null : sel))
     },
-    [broadcastElementDelete, saveBoard]
+    [isReadOnly, broadcastElementDelete, saveBoard]
   )
 
   // Clear Canvas (wipes whole board for fresh Paint session)
   const handleClearCanvas = useCallback(() => {
+    if (isReadOnly) return
     if (elementsRef.current.length === 0 && elements.length === 0) return
     elementsRef.current = []
     setElements([])
@@ -518,7 +590,7 @@ export default function BoardWorkspace({ roomId }) {
     broadcastCanvasClear()
     setSelectedElement(null)
     toast.success('Canvas cleared! 🎨')
-  }, [elements, saveBoard, broadcastCanvasClear])
+  }, [isReadOnly, elements, saveBoard, broadcastCanvasClear])
 
   // Upload & Insert Image
   const handleUploadImage = useCallback(
@@ -593,6 +665,7 @@ export default function BoardWorkspace({ roomId }) {
   // Keyboard Shortcuts Listener
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (isReadOnly) return
       // Ignore if typing in text inputs
       if (
         document.activeElement.tagName === 'INPUT' ||
@@ -752,136 +825,142 @@ export default function BoardWorkspace({ roomId }) {
         onLeaveVoice={leaveVoice}
         onToggleVoiceMute={toggleVoiceMute}
         onOpenPdfModal={() => setPdfModalOpen(true)}
+        isReadOnly={isReadOnly}
+        onRequestEditAccess={() => setPasswordModalOpen(true)}
       />
 
-      {/* 2. Paint-Style Ribbon Toolbar */}
-      <Toolbar
-        activeTool={activeTool}
-        onSelectTool={(tool) => {
-          setActiveTool(tool)
-          if (tool !== 'select') setSelectedElement(null)
-        }}
-        currentColor={selectedElement?.color || currentColor}
-        onChangeColor={(c) => {
-          setCurrentColor(c)
-          if (selectedElement) {
-            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
-            const updated = currentList.map((el) =>
-              el.id === selectedElement.id ? { ...el, color: c } : el
-            )
-            handleElementsChange(updated)
-            setSelectedElement({ ...selectedElement, color: c })
+      {/* 2. Paint-Style Ribbon Toolbar (Hidden for Viewers) */}
+      {!isReadOnly && (
+        <Toolbar
+          activeTool={activeTool}
+          onSelectTool={(tool) => {
+            setActiveTool(tool)
+            if (tool !== 'select') setSelectedElement(null)
+          }}
+          currentColor={selectedElement?.color || currentColor}
+          onChangeColor={(c) => {
+            setCurrentColor(c)
+            if (selectedElement) {
+              const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+              const updated = currentList.map((el) =>
+                el.id === selectedElement.id ? { ...el, color: c } : el
+              )
+              handleElementsChange(updated)
+              setSelectedElement({ ...selectedElement, color: c })
+            }
+          }}
+          currentFillColor={
+            selectedElement?.fillColor && selectedElement.fillColor !== 'transparent'
+              ? selectedElement.fillColor
+              : currentFillColor
           }
-        }}
-        currentFillColor={
-          selectedElement?.fillColor && selectedElement.fillColor !== 'transparent'
-            ? selectedElement.fillColor
-            : currentFillColor
-        }
-        onChangeFillColor={(fill) => {
-          setCurrentFillColor(fill)
-          if (selectedElement) {
-            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
-            const updated = currentList.map((el) =>
-              el.id === selectedElement.id ? { ...el, fillColor: fill } : el
-            )
-            handleElementsChange(updated)
-            setSelectedElement({ ...selectedElement, fillColor: fill })
-          }
-        }}
-        currentStrokeWidth={selectedElement?.strokeWidth || currentStrokeWidth}
-        onChangeStrokeWidth={(w) => {
-          setCurrentStrokeWidth(w)
-          if (selectedElement) {
-            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
-            const updated = currentList.map((el) =>
-              el.id === selectedElement.id ? { ...el, strokeWidth: w } : el
-            )
-            handleElementsChange(updated)
-            setSelectedElement({ ...selectedElement, strokeWidth: w })
-          }
-        }}
-        canUndo={historyRef.current.canUndo()}
-        canRedo={historyRef.current.canRedo()}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        onClearCanvas={handleClearCanvas}
-        reactionsOpen={reactionsPickerOpen}
-        onToggleReactions={() => setReactionsPickerOpen((prev) => !prev)}
-        onUploadImage={handleUploadImage}
-        onOpenPdfModal={() => setPdfModalOpen(true)}
-      />
+          onChangeFillColor={(fill) => {
+            setCurrentFillColor(fill)
+            if (selectedElement) {
+              const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+              const updated = currentList.map((el) =>
+                el.id === selectedElement.id ? { ...el, fillColor: fill } : el
+              )
+              handleElementsChange(updated)
+              setSelectedElement({ ...selectedElement, fillColor: fill })
+            }
+          }}
+          currentStrokeWidth={selectedElement?.strokeWidth || currentStrokeWidth}
+          onChangeStrokeWidth={(w) => {
+            setCurrentStrokeWidth(w)
+            if (selectedElement) {
+              const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+              const updated = currentList.map((el) =>
+                el.id === selectedElement.id ? { ...el, strokeWidth: w } : el
+              )
+              handleElementsChange(updated)
+              setSelectedElement({ ...selectedElement, strokeWidth: w })
+            }
+          }}
+          canUndo={historyRef.current.canUndo()}
+          canRedo={historyRef.current.canRedo()}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onClearCanvas={handleClearCanvas}
+          reactionsOpen={reactionsPickerOpen}
+          onToggleReactions={() => setReactionsPickerOpen((prev) => !prev)}
+          onUploadImage={handleUploadImage}
+          onOpenPdfModal={() => setPdfModalOpen(true)}
+        />
+      )}
 
-      {/* 3. Contextual Properties Panel */}
-      <PropertiesPanel
-        activeTool={activeTool}
-        selectedElement={selectedElement}
-        currentColor={selectedElement?.color || currentColor}
-        currentStrokeWidth={selectedElement?.strokeWidth || currentStrokeWidth}
-        currentFillColor={
-          selectedElement?.fillColor !== undefined
-            ? selectedElement.fillColor
-            : currentFillColor
-        }
-        currentStickyColor={selectedElement?.bgColor || currentStickyColor}
-        currentFontSize={selectedElement?.fontSize || currentFontSize}
-        onChangeColor={(c) => {
-          setCurrentColor(c)
-          if (selectedElement) {
-            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
-            const updated = currentList.map((el) =>
-              el.id === selectedElement.id ? { ...el, color: c } : el
-            )
-            handleElementsChange(updated)
-            setSelectedElement({ ...selectedElement, color: c })
+      {/* 3. Contextual Properties Panel (Hidden for Viewers) */}
+      {!isReadOnly && (
+        <PropertiesPanel
+          activeTool={activeTool}
+          selectedElement={selectedElement}
+          currentColor={selectedElement?.color || currentColor}
+          currentStrokeWidth={selectedElement?.strokeWidth || currentStrokeWidth}
+          currentFillColor={
+            selectedElement?.fillColor !== undefined
+              ? selectedElement.fillColor
+              : currentFillColor
           }
-        }}
-        onChangeStrokeWidth={(w) => {
-          setCurrentStrokeWidth(w)
-          if (selectedElement) {
-            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
-            const updated = currentList.map((el) =>
-              el.id === selectedElement.id ? { ...el, strokeWidth: w } : el
-            )
-            handleElementsChange(updated)
-            setSelectedElement({ ...selectedElement, strokeWidth: w })
-          }
-        }}
-        onChangeFillColor={(fill) => {
-          setCurrentFillColor(fill)
-          if (selectedElement) {
-            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
-            const updated = currentList.map((el) =>
-              el.id === selectedElement.id ? { ...el, fillColor: fill } : el
-            )
-            handleElementsChange(updated)
-            setSelectedElement({ ...selectedElement, fillColor: fill })
-          }
-        }}
-        onChangeStickyColor={(sc) => {
-          setCurrentStickyColor(sc)
-          if (selectedElement && selectedElement.type === 'sticky') {
-            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
-            const updated = currentList.map((el) =>
-              el.id === selectedElement.id ? { ...el, bgColor: sc } : el
-            )
-            handleElementsChange(updated)
-            setSelectedElement({ ...selectedElement, bgColor: sc })
-          }
-        }}
-        onChangeFontSize={(fs) => {
-          setCurrentFontSize(fs)
-          if (selectedElement && selectedElement.type === 'text') {
-            const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
-            const updated = currentList.map((el) =>
-              el.id === selectedElement.id ? { ...el, fontSize: fs } : el
-            )
-            handleElementsChange(updated)
-            setSelectedElement({ ...selectedElement, fontSize: fs })
-          }
-        }}
-        onDeleteSelected={handleDeleteSelected}
-      />
+          currentStickyColor={selectedElement?.bgColor || currentStickyColor}
+          currentFontSize={selectedElement?.fontSize || currentFontSize}
+          onChangeColor={(c) => {
+            setCurrentColor(c)
+            if (selectedElement) {
+              const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+              const updated = currentList.map((el) =>
+                el.id === selectedElement.id ? { ...el, color: c } : el
+              )
+              handleElementsChange(updated)
+              setSelectedElement({ ...selectedElement, color: c })
+            }
+          }}
+          onChangeStrokeWidth={(w) => {
+            setCurrentStrokeWidth(w)
+            if (selectedElement) {
+              const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+              const updated = currentList.map((el) =>
+                el.id === selectedElement.id ? { ...el, strokeWidth: w } : el
+              )
+              handleElementsChange(updated)
+              setSelectedElement({ ...selectedElement, strokeWidth: w })
+            }
+          }}
+          onChangeFillColor={(fill) => {
+            setCurrentFillColor(fill)
+            if (selectedElement) {
+              const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+              const updated = currentList.map((el) =>
+                el.id === selectedElement.id ? { ...el, fillColor: fill } : el
+              )
+              handleElementsChange(updated)
+              setSelectedElement({ ...selectedElement, fillColor: fill })
+            }
+          }}
+          onChangeStickyColor={(sc) => {
+            setCurrentStickyColor(sc)
+            if (selectedElement && selectedElement.type === 'sticky') {
+              const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+              const updated = currentList.map((el) =>
+                el.id === selectedElement.id ? { ...el, bgColor: sc } : el
+              )
+              handleElementsChange(updated)
+              setSelectedElement({ ...selectedElement, bgColor: sc })
+            }
+          }}
+          onChangeFontSize={(fs) => {
+            setCurrentFontSize(fs)
+            if (selectedElement && selectedElement.type === 'text') {
+              const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+              const updated = currentList.map((el) =>
+                el.id === selectedElement.id ? { ...el, fontSize: fs } : el
+              )
+              handleElementsChange(updated)
+              setSelectedElement({ ...selectedElement, fontSize: fs })
+            }
+          }}
+          onDeleteSelected={handleDeleteSelected}
+        />
+      )}
 
       {/* 4. Remote Collaborator Pointers Overlay */}
       <RemoteCursors remoteCursors={remoteCursors} viewport={viewport} />
@@ -905,6 +984,7 @@ export default function BoardWorkspace({ roomId }) {
         onCursorMove={broadcastCursor}
         onDrawPreview={broadcastDrawPreview}
         remotePreviews={remotePreviews}
+        isReadOnly={isReadOnly}
       />
 
       {/* 6. Live Floating Emoji Reactions Overlay */}
@@ -939,6 +1019,15 @@ export default function BoardWorkspace({ roomId }) {
         currentUser={currentUser}
         isHost={isHost}
         onKickUser={kickCollaborator}
+        roomPassword={roomPassword}
+        onSetRoomPassword={setRoomPassword}
+      />
+
+      <PasswordModal
+        isOpen={passwordModalOpen}
+        onClose={() => setPasswordModalOpen(false)}
+        onUnlock={handleUnlockEditAccess}
+        hasPassword={Boolean(roomPassword)}
       />
 
       <JoinCodeModal

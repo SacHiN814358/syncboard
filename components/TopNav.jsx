@@ -17,6 +17,7 @@ import {
   MicOff,
   PhoneOff,
   FileText,
+  Eye,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -37,6 +38,8 @@ import toast from 'react-hot-toast'
  *   onOpenInvite: () => void,
  *   onOpenJoinCode: () => void,
  *   onNewBoard: () => void,
+ *   isReadOnly?: boolean,
+ *   onRequestEditAccess?: () => void,
  * }} props
  */
 export default function TopNav({
@@ -70,6 +73,8 @@ export default function TopNav({
   onJoinVoice,
   onLeaveVoice,
   onToggleVoiceMute,
+  isReadOnly = false,
+  onRequestEditAccess,
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState(boardTitle)
@@ -134,9 +139,22 @@ export default function TopNav({
           </button>
         )}
 
-        {/* Editable Board Title */}
+        {/* Read-Only Viewer Pill */}
+        {isReadOnly && (
+          <button
+            onClick={onRequestEditAccess}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold shrink-0 cursor-pointer transition-colors shadow-2xs"
+            title="Board is in Read-Only Mode. Click to unlock edit access."
+          >
+            <Eye className="w-3.5 h-3.5 text-amber-600" />
+            <span>Viewer</span>
+            <span className="text-[10px] text-amber-700 underline ml-0.5 hidden sm:inline">Unlock 🔓</span>
+          </button>
+        )}
+
+        {/* Editable Board Title (Disabled for Viewer) */}
         <div className="min-w-0 max-w-[140px] sm:max-w-[200px]">
-          {editingTitle ? (
+          {editingTitle && !isReadOnly ? (
             <input
               type="text"
               autoFocus
@@ -155,11 +173,14 @@ export default function TopNav({
           ) : (
             <button
               onClick={() => {
+                if (isReadOnly) return
                 setTitleInput(boardTitle)
                 setEditingTitle(true)
               }}
-              className="px-1.5 py-0.5 rounded text-xs font-semibold text-[#212529] hover:bg-[#f1f3f5] truncate text-left max-w-full block"
-              title="Click to rename"
+              className={`px-1.5 py-0.5 rounded text-xs font-semibold text-[#212529] truncate text-left max-w-full block ${
+                isReadOnly ? 'cursor-default' : 'hover:bg-[#f1f3f5] cursor-pointer'
+              }`}
+              title={isReadOnly ? 'Board Title' : 'Click to rename'}
             >
               {boardTitle || 'Untitled Board'}
             </button>
@@ -402,9 +423,25 @@ export default function TopNav({
       </div>
     </header>
 
+    {/* Floating Banner 0: Read-Only Viewer Mode (Toolbar is hidden) */}
+    {isReadOnly && (
+      <div className="fixed top-15 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-[#18181b]/95 backdrop-blur-md text-white text-xs font-medium shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-3 border border-amber-400/40 select-none">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+          <span>👁️ <strong className="text-amber-300 font-semibold">Read-Only Mode</strong> • Canvas is view only</span>
+        </div>
+        <button
+          onClick={onRequestEditAccess}
+          className="px-3 py-1 rounded-full bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-1 active:scale-95"
+        >
+          <span>Unlock Edit Access 🔓</span>
+        </button>
+      </div>
+    )}
+
     {/* Floating Banner 1: Someone is Presenting & You are NOT following yet */}
     {activePresenter && !followingUser && !isPresenter && (
-      <div className="fixed top-15 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-[#18181b]/95 backdrop-blur-md text-white text-xs font-medium shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-3 border border-rose-500/40 select-none">
+      <div className={`fixed ${isReadOnly ? 'top-26' : 'top-15'} left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-[#18181b]/95 backdrop-blur-md text-white text-xs font-medium shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-3 border border-rose-500/40 select-none`}>
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
           <span>🎥 <strong className="text-rose-400 font-semibold">{activePresenter.name}</strong> is presenting</span>
@@ -421,7 +458,7 @@ export default function TopNav({
 
     {/* Floating Banner 2: Currently Following Presenter */}
     {followingUser && (
-      <div className="fixed top-15 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-[#18181b]/95 backdrop-blur-md text-white text-xs font-medium shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-2 border border-emerald-500/40 select-none">
+      <div className={`fixed ${isReadOnly ? 'top-26' : 'top-15'} left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-[#18181b]/95 backdrop-blur-md text-white text-xs font-medium shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-2 border border-emerald-500/40 select-none`}>
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
           <span>Following <strong className="text-emerald-300 font-semibold">{followingUser.name}</strong>&apos;s camera</span>
