@@ -18,6 +18,23 @@ export function getElementBounds(el) {
     return { x: el.x, y: el.y, width: el.width, height: el.height }
   }
 
+  if (el.type === 'elbow-arrow' || el.type === 'elbow-line') {
+    const pts = getElbowPoints(el)
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const p of pts) {
+      if (p.x < minX) minX = p.x
+      if (p.y < minY) minY = p.y
+      if (p.x > maxX) maxX = p.x
+      if (p.y > maxY) maxY = p.y
+    }
+    return {
+      x: minX,
+      y: minY,
+      width: Math.max(maxX - minX, 1),
+      height: Math.max(maxY - minY, 1),
+    }
+  }
+
   if (LINE_SHAPES.includes(el.type)) {
     const minX = Math.min(el.x1, el.x2)
     const minY = Math.min(el.y1, el.y2)
@@ -106,6 +123,10 @@ export function hitTestElement(wx, wy, el, tolerance = 8) {
 
   if (BOX_SHAPES.includes(el.type)) {
     return hitTestRect(wx, wy, el, tolerance)
+  }
+
+  if (el.type === 'elbow-arrow' || el.type === 'elbow-line') {
+    return hitTestElbowLine(wx, wy, el, tolerance)
   }
 
   if (LINE_SHAPES.includes(el.type)) {
@@ -392,6 +413,64 @@ function hitTestEllipse(wx, wy, el, tolerance) {
 
 function hitTestLine(wx, wy, x1, y1, x2, y2, tolerance) {
   return distanceToSegment(wx, wy, x1, y1, x2, y2) <= tolerance
+}
+
+/**
+ * Calculates 4 orthogonal routing points for elbow connectors.
+ * @param {import('./elements').CanvasElement} el
+ * @returns {{x: number, y: number}[]}
+ */
+export function getElbowPoints(el) {
+  const { x1, y1, x2, y2, startBinding, endBinding } = el
+  const startAnchor = startBinding?.anchor
+  const endAnchor = endBinding?.anchor
+
+  if (startAnchor === 'top' || startAnchor === 'bottom' || endAnchor === 'top' || endAnchor === 'bottom') {
+    const midY = (y1 + y2) / 2
+    return [
+      { x: x1, y: y1 },
+      { x: x1, y: midY },
+      { x: x2, y: midY },
+      { x: x2, y: y2 },
+    ]
+  } else if (startAnchor === 'left' || startAnchor === 'right' || endAnchor === 'left' || endAnchor === 'right') {
+    const midX = (x1 + x2) / 2
+    return [
+      { x: x1, y: y1 },
+      { x: midX, y: y1 },
+      { x: midX, y: y2 },
+      { x: x2, y: y2 },
+    ]
+  }
+
+  // Automatic heuristic based on relative displacement
+  if (Math.abs(x2 - x1) >= Math.abs(y2 - y1)) {
+    const midX = (x1 + x2) / 2
+    return [
+      { x: x1, y: y1 },
+      { x: midX, y: y1 },
+      { x: midX, y: y2 },
+      { x: x2, y: y2 },
+    ]
+  } else {
+    const midY = (y1 + y2) / 2
+    return [
+      { x: x1, y: y1 },
+      { x: x1, y: midY },
+      { x: x2, y: midY },
+      { x: x2, y: y2 },
+    ]
+  }
+}
+
+function hitTestElbowLine(wx, wy, el, tolerance) {
+  const pts = getElbowPoints(el)
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (distanceToSegment(wx, wy, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= tolerance) {
+      return true
+    }
+  }
+  return false
 }
 
 /**

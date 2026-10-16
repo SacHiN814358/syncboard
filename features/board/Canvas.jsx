@@ -16,6 +16,7 @@ import {
   drawSelectionBox,
   drawHoverBox,
   drawMagneticAnchors,
+  isDarkColor,
 } from './renderer'
 import {
   findElementAtPoint,
@@ -26,9 +27,11 @@ import {
   getElementAnchors,
   getAnchorCoordinates,
   findNearestAnchor,
+  getElbowPoints,
 } from './hitTest'
 import { BOX_SHAPES, LINE_SHAPES } from './elements'
 import { performFloodFill } from './floodFill'
+import { Plus, Magnet } from 'lucide-react'
 
 const BUCKET_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23212529' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z'/%3E%3Cpath d='m5 2 5 5'/%3E%3Cpath d='M2 13h15'/%3E%3Cpath d='M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z' fill='%231971c2'/%3E%3C/svg%3E") 4 20, crosshair`
 
@@ -91,6 +94,14 @@ export default function Canvas({
   // Inline text editing state
   const [editingText, setEditingText] = useState(null) // { id, x, y, text, type }
   const textInputRef = useRef(null)
+
+  // Smart Grid Snapping for Miro/Excalidraw Flowcharts & Diagrams
+  const [gridSnap, setGridSnap] = useState(true)
+  const gridSnapRef = useRef(true)
+  useEffect(() => {
+    gridSnapRef.current = gridSnap
+  }, [gridSnap])
+  const snapToGrid = (val, size = 20) => Math.round(val / size) * size
 
   // Needs repaint flag for requestAnimationFrame
   const needsRepaintRef = useRef(true)
@@ -638,11 +649,13 @@ export default function Canvas({
         strokeWidth: activeTool === 'brush' ? Math.max(6, currentStrokeWidth * 2) : currentStrokeWidth,
       }
     } else if (BOX_SHAPES.includes(activeTool)) {
+      const startX = gridSnapRef.current ? snapToGrid(world.x) : world.x
+      const startY = gridSnapRef.current ? snapToGrid(world.y) : world.y
       transientElementRef.current = {
         id: generateId(),
         type: activeTool,
-        x: world.x,
-        y: world.y,
+        x: startX,
+        y: startY,
         width: 0,
         height: 0,
         color: currentColor,
@@ -650,11 +663,13 @@ export default function Canvas({
         fillColor: currentFillColor,
       }
     } else if (activeTool === 'circle') {
+      const startX = gridSnapRef.current ? snapToGrid(world.x) : world.x
+      const startY = gridSnapRef.current ? snapToGrid(world.y) : world.y
       transientElementRef.current = {
         id: generateId(),
         type: 'circle',
-        x: world.x,
-        y: world.y,
+        x: startX,
+        y: startY,
         radiusX: 0,
         radiusY: 0,
         color: currentColor,
@@ -929,7 +944,9 @@ export default function Canvas({
           }
           return movedEl
         } else {
-          movedEl = { ...el, x: targetWorldX, y: targetWorldY }
+          const finalX = gridSnapRef.current ? snapToGrid(targetWorldX) : targetWorldX
+          const finalY = gridSnapRef.current ? snapToGrid(targetWorldY) : targetWorldY
+          movedEl = { ...el, x: finalX, y: finalY }
           return movedEl
         }
       })
@@ -992,10 +1009,12 @@ export default function Canvas({
           current.points.push({ x: roundedX, y: roundedY })
         }
       } else if (BOX_SHAPES.includes(current.type)) {
-        current.x = Math.min(startW.worldX, world.x)
-        current.y = Math.min(startW.worldY, world.y)
-        current.width = Math.abs(world.x - startW.worldX)
-        current.height = Math.abs(world.y - startW.worldY)
+        const curX = gridSnapRef.current ? snapToGrid(world.x) : world.x
+        const curY = gridSnapRef.current ? snapToGrid(world.y) : world.y
+        current.x = Math.min(startW.worldX, curX)
+        current.y = Math.min(startW.worldY, curY)
+        current.width = Math.abs(curX - startW.worldX)
+        current.height = Math.abs(curY - startW.worldY)
       } else if (current.type === 'circle') {
         current.x = (startW.worldX + world.x) / 2
         current.y = (startW.worldY + world.y) / 2
@@ -1117,7 +1136,7 @@ export default function Canvas({
     }
   }
 
-  // 8. Double Click to edit Text/Sticky or fill Shape with color
+  // 8. Double Click to edit Text/Sticky/Shape/Connector or fill Shape with color
   const handleDoubleClick = (e) => {
     isInteractingRef.current = false
     interactionModeRef.current = 'none'
@@ -1132,9 +1151,39 @@ export default function Canvas({
     const current = elementsRef.current || elements || []
     const hit = findElementAtPoint(world.x, world.y, current, 14 / viewport.zoom)
     if (hit) {
-      if (hit.type === 'text' || hit.type === 'sticky') {
-        onSelectElement(hit)
-        onSelectTool?.('select')
+      onSelectElement(hit)
+      onSelectTool?.('select')
+
+      // If bucket tool is explicitly active, fill color
+      if (activeTool === 'bucket') {
+        const fillToApply =
+          currentFillColor && currentFillColor !== 'transparent'
+            ? currentFillColor
+            : currentColor || '#1971c2'
+        const updated = current.map((el) => {
+          if (el.id !== hit.id) return el
+          if (LINE_SHAPES.includes(el.type)) return { ...el, color: fillToApply }
+          return { ...el, fillColor: fillToApply }
+        })
+        elementsRef.current = updated
+        onElementsChange(updated)
+        toast.success('Filled with color! 🎨', { id: 'fill-toast', duration: 1200 })
+        needsRepaintRef.current = true
+        return
+      }
+
+      // Miro / Excalidraw: Double-click to edit text inside ANY shape, connector, text, or sticky note
+      if (hit.type === 'text') {
+        setEditingText({
+          id: hit.id,
+          x: hit.x,
+          y: hit.y,
+          text: hit.text || '',
+          type: 'text',
+          fontSize: hit.fontSize || currentFontSize,
+          color: hit.color || currentColor,
+        })
+      } else if (hit.type === 'sticky') {
         setEditingText({
           id: hit.id,
           x: hit.x,
@@ -1142,23 +1191,40 @@ export default function Canvas({
           width: hit.width,
           height: hit.height,
           text: hit.text || '',
-          type: hit.type,
+          type: 'sticky',
         })
-      } else {
-        // Double-click to fill any shape or pen stroke!
-        const fillToApply = currentFillColor && currentFillColor !== 'transparent' ? currentFillColor : (currentColor || '#1971c2')
-        const updated = current.map((el) => {
-          if (el.id !== hit.id) return el
-          if (LINE_SHAPES.includes(el.type)) {
-            return { ...el, color: fillToApply }
-          }
-          return { ...el, fillColor: fillToApply }
+      } else if (LINE_SHAPES.includes(hit.type)) {
+        let midX = (hit.x1 + hit.x2) / 2
+        let midY = (hit.y1 + hit.y2) / 2
+        if (hit.type === 'elbow-arrow' || hit.type === 'elbow-line') {
+          const pts = getElbowPoints(hit)
+          midX = (pts[1].x + pts[2].x) / 2
+          midY = (pts[1].y + pts[2].y) / 2
+        }
+        setEditingText({
+          id: hit.id,
+          x: midX,
+          y: midY,
+          text: hit.text || '',
+          type: 'connector',
+          fontSize: hit.fontSize || 13,
+          color: hit.color || currentColor,
         })
-        elementsRef.current = updated
-        onElementsChange(updated)
-        const filledEl = updated.find((el) => el.id === hit.id)
-        onSelectElement(filledEl || null)
-        toast.success('Filled with color! 🎨', { id: 'fill-toast', duration: 1200 })
+      } else if (BOX_SHAPES.includes(hit.type) || hit.type === 'circle') {
+        const bounds = getElementBounds(hit)
+        if (bounds) {
+          setEditingText({
+            id: hit.id,
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+            text: hit.text || '',
+            type: 'shape',
+            fontSize: hit.fontSize || 14,
+            color: hit.textColor || (isDarkColor(hit.fillColor) ? '#ffffff' : hit.color || '#1e293b'),
+          })
+        }
       }
       needsRepaintRef.current = true
     }
@@ -1180,7 +1246,7 @@ export default function Canvas({
           updated = [
             ...current,
             {
-              id: editingText.id,
+              id: generateId(),
               type: 'text',
               x: editingText.x,
               y: editingText.y,
@@ -1206,9 +1272,119 @@ export default function Canvas({
       const updated = current.map((el) => (el.id === editingText.id ? { ...el, text: textVal } : el))
       elementsRef.current = updated
       onElementsChange(updated)
+    } else if (editingText.type === 'shape' || editingText.type === 'connector') {
+      const updated = current.map((el) => (el.id === editingText.id ? { ...el, text: textVal } : el))
+      elementsRef.current = updated
+      onElementsChange(updated)
     }
 
     setEditingText(null)
+    needsRepaintRef.current = true
+  }
+
+  // 10. Miro-Style Quick-Add Connected Shape Node
+  const handleQuickAdd = (direction) => {
+    if (!selectedElement) return
+    const current = elementsRef.current || elements || []
+    const b = getElementBounds(selectedElement)
+    if (!b) return
+
+    const spacing = 120
+    let newX = b.x
+    let newY = b.y
+    let startAnchor = 'right'
+    let endAnchor = 'left'
+
+    if (direction === 'right') {
+      newX = b.x + b.width + spacing
+      newY = b.y
+      startAnchor = 'right'
+      endAnchor = 'left'
+    } else if (direction === 'bottom') {
+      newX = b.x
+      newY = b.y + b.height + spacing
+      startAnchor = 'bottom'
+      endAnchor = 'top'
+    } else if (direction === 'left') {
+      newX = b.x - b.width - spacing
+      newY = b.y
+      startAnchor = 'left'
+      endAnchor = 'right'
+    } else if (direction === 'top') {
+      newX = b.x
+      newY = b.y - b.height - spacing
+      startAnchor = 'top'
+      endAnchor = 'bottom'
+    }
+
+    if (gridSnapRef.current) {
+      newX = snapToGrid(newX)
+      newY = snapToGrid(newY)
+    }
+
+    const newShapeId = generateId()
+    let newShape
+    if (selectedElement.type === 'circle') {
+      newShape = {
+        id: newShapeId,
+        type: 'circle',
+        x: newX + b.width / 2,
+        y: newY + b.height / 2,
+        radiusX: selectedElement.radiusX || 50,
+        radiusY: selectedElement.radiusY || 50,
+        color: selectedElement.color || '#212529',
+        strokeWidth: selectedElement.strokeWidth || 2,
+        fillColor: selectedElement.fillColor || 'transparent',
+        text: '',
+      }
+    } else {
+      newShape = {
+        id: newShapeId,
+        type: selectedElement.type,
+        x: newX,
+        y: newY,
+        width: b.width,
+        height: b.height,
+        color: selectedElement.color || '#212529',
+        strokeWidth: selectedElement.strokeWidth || 2,
+        fillColor: selectedElement.fillColor || 'transparent',
+        text: '',
+      }
+    }
+
+    const p1 = getAnchorCoordinates(selectedElement, startAnchor) || { x: b.x + b.width, y: b.y + b.height / 2 }
+    const p2 = getAnchorCoordinates(newShape, endAnchor) || { x: newX, y: newY + b.height / 2 }
+
+    const newConnector = {
+      id: generateId(),
+      type: 'elbow-arrow',
+      x1: p1.x,
+      y1: p1.y,
+      x2: p2.x,
+      y2: p2.y,
+      color: selectedElement.color || '#212529',
+      strokeWidth: selectedElement.strokeWidth || 2,
+      startBinding: { elementId: selectedElement.id, anchor: startAnchor },
+      endBinding: { elementId: newShapeId, anchor: endAnchor },
+    }
+
+    const updated = [...current, newConnector, newShape]
+    elementsRef.current = updated
+    onElementsChange(updated)
+    onSelectElement(newShape)
+
+    const newBounds = getElementBounds(newShape)
+    setEditingText({
+      id: newShapeId,
+      x: newBounds.x,
+      y: newBounds.y,
+      width: newBounds.width,
+      height: newBounds.height,
+      text: '',
+      type: 'shape',
+      fontSize: 14,
+      color: newShape.textColor || (isDarkColor(newShape.fillColor) ? '#ffffff' : newShape.color || '#1e293b'),
+    })
     needsRepaintRef.current = true
   }
 
@@ -1248,18 +1424,95 @@ export default function Canvas({
         }}
       />
 
-      {/* Inline Textarea Overlay for Text & Sticky Notes */}
+      {/* Miro-Style Quick-Add Connected Shape Handles */}
+      {selectedElement &&
+        activeTool === 'select' &&
+        interactionModeRef.current === 'none' &&
+        !editingText &&
+        (BOX_SHAPES.includes(selectedElement.type) || selectedElement.type === 'circle') &&
+        (() => {
+          const b = getElementBounds(selectedElement)
+          if (!b) return null
+          const p1 = worldToScreen(b.x, b.y, viewport)
+          const p2 = worldToScreen(b.x + b.width, b.y + b.height, viewport)
+          const screenW = p2.x - p1.x
+          const screenH = p2.y - p1.y
+          const midX = p1.x + screenW / 2
+          const midY = p1.y + screenH / 2
+
+          return (
+            <div className="absolute inset-0 pointer-events-none z-20">
+              {/* Right + Handle */}
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleQuickAdd('right')
+                }}
+                title="Add step right (Miro Quick-Add)"
+                className="absolute w-5 h-5 rounded-full bg-[#1971c2] text-white hover:bg-[#1864ab] hover:scale-125 transition-transform flex items-center justify-center shadow-md pointer-events-auto cursor-pointer -translate-x-1/2 -translate-y-1/2 border border-white"
+                style={{ left: `${p2.x + 16}px`, top: `${midY}px` }}
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
+
+              {/* Bottom + Handle */}
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleQuickAdd('bottom')
+                }}
+                title="Add step down (Miro Quick-Add)"
+                className="absolute w-5 h-5 rounded-full bg-[#1971c2] text-white hover:bg-[#1864ab] hover:scale-125 transition-transform flex items-center justify-center shadow-md pointer-events-auto cursor-pointer -translate-x-1/2 -translate-y-1/2 border border-white"
+                style={{ left: `${midX}px`, top: `${p2.y + 16}px` }}
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
+
+              {/* Left + Handle */}
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleQuickAdd('left')
+                }}
+                title="Add step left (Miro Quick-Add)"
+                className="absolute w-5 h-5 rounded-full bg-[#1971c2] text-white hover:bg-[#1864ab] hover:scale-125 transition-transform flex items-center justify-center shadow-md pointer-events-auto cursor-pointer -translate-x-1/2 -translate-y-1/2 border border-white"
+                style={{ left: `${p1.x - 16}px`, top: `${midY}px` }}
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
+
+              {/* Top + Handle */}
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleQuickAdd('top')
+                }}
+                title="Add step up (Miro Quick-Add)"
+                className="absolute w-5 h-5 rounded-full bg-[#1971c2] text-white hover:bg-[#1864ab] hover:scale-125 transition-transform flex items-center justify-center shadow-md pointer-events-auto cursor-pointer -translate-x-1/2 -translate-y-1/2 border border-white"
+                style={{ left: `${midX}px`, top: `${p1.y - 16}px` }}
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
+            </div>
+          )
+        })()}
+
+      {/* Inline Textarea Overlay for Text, Shapes, Sticky Notes & Connectors */}
       {editingText && (
         <div
           className="absolute z-30"
           style={{
             left: `${worldToScreen(editingText.x, editingText.y, viewport).x}px`,
             top: `${worldToScreen(editingText.x, editingText.y, viewport).y}px`,
-            transform: `scale(${viewport.zoom})`,
+            transform: editingText.type === 'shape' || editingText.type === 'connector' ? undefined : `scale(${viewport.zoom})`,
             transformOrigin: 'top left',
           }}
         >
-          {editingText.type === 'text' ? (
+          {editingText.type === 'text' && (
             <textarea
               ref={textInputRef}
               autoFocus
@@ -1277,7 +1530,9 @@ export default function Canvas({
               rows={Math.max(1, (editingText.text || '').split('\n').length)}
               placeholder="Type something..."
             />
-          ) : (
+          )}
+
+          {editingText.type === 'sticky' && (
             <textarea
               ref={textInputRef}
               autoFocus
@@ -1294,8 +1549,73 @@ export default function Canvas({
               placeholder="Write a note..."
             />
           )}
+
+          {editingText.type === 'shape' && (
+            <div
+              className="flex items-center justify-center"
+              style={{
+                width: `${(editingText.width || 120) * viewport.zoom}px`,
+                height: `${(editingText.height || 60) * viewport.zoom}px`,
+              }}
+            >
+              <textarea
+                ref={textInputRef}
+                autoFocus
+                defaultValue={editingText.text}
+                onBlur={commitTextEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    commitTextEdit()
+                  }
+                  if (e.key === 'Escape') setEditingText(null)
+                }}
+                style={{
+                  fontSize: `${Math.max(12, (editingText.fontSize || 14) * viewport.zoom)}px`,
+                  color: editingText.color || '#1e293b',
+                }}
+                className="w-[88%] text-center p-1.5 bg-white/95 shadow-md border-2 border-[#1971c2] rounded-lg outline-none resize-none overflow-hidden font-sans font-medium"
+                rows={Math.max(1, (editingText.text || '').split('\n').length)}
+                placeholder="Type label..."
+              />
+            </div>
+          )}
+
+          {editingText.type === 'connector' && (
+            <div className="-translate-x-1/2 -translate-y-1/2">
+              <input
+                ref={textInputRef}
+                autoFocus
+                defaultValue={editingText.text}
+                onBlur={commitTextEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    commitTextEdit()
+                  }
+                  if (e.key === 'Escape') setEditingText(null)
+                }}
+                className="px-2.5 py-1 text-xs font-semibold text-center bg-white border-2 border-[#1971c2] shadow-lg rounded-md outline-none min-w-[75px]"
+                placeholder="e.g. Yes / No"
+              />
+            </div>
+          )}
         </div>
       )}
+
+      {/* Grid Snapping Floating Toggle */}
+      <button
+        onClick={() => setGridSnap((prev) => !prev)}
+        title={gridSnap ? 'Grid Snapping Active (Click to disable)' : 'Grid Snapping Off (Click to enable)'}
+        className={`absolute bottom-5 right-5 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md shadow-md transition-all cursor-pointer border ${
+          gridSnap
+            ? 'bg-[#e7f5ff]/95 text-[#1971c2] border-[#a5d8ff]'
+            : 'bg-white/90 text-[#868e96] border-[#dee2e6] hover:text-[#495057]'
+        }`}
+      >
+        <Magnet className="w-3.5 h-3.5" />
+        <span>{gridSnap ? 'Grid Snap ON' : 'Grid Snap OFF'}</span>
+      </button>
     </div>
   )
 }

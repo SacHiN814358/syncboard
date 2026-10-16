@@ -278,11 +278,11 @@ export default function PropertiesPanel({
           </div>
         )}
 
-        {/* Font Size for Text */}
-        {isText && (
+        {/* Font Size for Text & Shape Labels */}
+        {(isText || (selectedElement && selectedElement.text)) && (
           <div>
             <div className="text-[11px] font-semibold text-[#868e96] mb-1.5 uppercase tracking-wider">
-              Font Size
+              {isText ? 'Font Size' : 'Label Size'}
             </div>
             <div className="grid grid-cols-4 gap-1 bg-[#f1f3f5] p-0.5 rounded-lg">
               {FONT_SIZES.map((fs) => {

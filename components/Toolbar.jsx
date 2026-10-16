@@ -106,6 +106,58 @@ function RoundedRectIcon({ className = 'w-4 h-4' }) {
   )
 }
 
+function TerminatorIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="12" rx="6" ry="6" />
+    </svg>
+  )
+}
+
+function CylinderIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+    </svg>
+  )
+}
+
+function DocumentIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 3h16v13c-4 2-8-2-12 0-2 1-4 0-4 0V3z" />
+    </svg>
+  )
+}
+
+function SubroutineIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="7" y1="4" x2="7" y2="20" />
+      <line x1="17" y1="4" x2="17" y2="20" />
+    </svg>
+  )
+}
+
+function ElbowArrowIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 19h7a4 4 0 0 0 4-4V5" />
+      <polyline points="12 9 16 5 20 9" />
+    </svg>
+  )
+}
+
+function ElbowLineIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 19h7a4 4 0 0 0 4-4V5" />
+    </svg>
+  )
+}
+
 const PRIMARY_TOOLS = [
   { id: 'select', label: 'Select / Move', shortcut: 'V', icon: MousePointer },
   { id: 'pan', label: 'Hand / Pan', shortcut: 'H', icon: Hand },
@@ -116,21 +168,29 @@ const PRIMARY_TOOLS = [
 ]
 
 const SHAPES_LIST = [
-  // 1. Basic & Geometric Shapes
-  { id: 'rectangle', label: 'Rectangle', icon: Square, category: 'Basic & Geometric Shapes' },
+  // 1. Flowchart & Diagramming (Miro / Excalidraw Style)
+  { id: 'terminator', label: 'Start / End', icon: TerminatorIcon, category: 'Flowchart & Diagramming' },
+  { id: 'rectangle', label: 'Process', icon: Square, category: 'Flowchart & Diagramming' },
+  { id: 'diamond', label: 'Decision', icon: Diamond, category: 'Flowchart & Diagramming' },
+  { id: 'parallelogram', label: 'Input / Output', icon: ParallelogramIcon, category: 'Flowchart & Diagramming' },
+  { id: 'cylinder', label: 'Database', icon: CylinderIcon, category: 'Flowchart & Diagramming' },
+  { id: 'document', label: 'Document', icon: DocumentIcon, category: 'Flowchart & Diagramming' },
+  { id: 'subroutine', label: 'Subroutine', icon: SubroutineIcon, category: 'Flowchart & Diagramming' },
+  { id: 'elbow-arrow', label: 'Elbow Arrow', icon: ElbowArrowIcon, category: 'Flowchart & Diagramming' },
+  { id: 'elbow-line', label: 'Elbow Line', icon: ElbowLineIcon, category: 'Flowchart & Diagramming' },
+
+  // 2. Basic & Geometric Shapes
   { id: 'rounded-rectangle', label: 'Rounded Rectangle', icon: RoundedRectIcon, category: 'Basic & Geometric Shapes' },
   { id: 'circle', label: 'Oval / Circle', icon: Circle, category: 'Basic & Geometric Shapes' },
   { id: 'triangle', label: 'Triangle', icon: Triangle, category: 'Basic & Geometric Shapes' },
   { id: 'right-triangle', label: 'Right Triangle', icon: RightTriangleIcon, category: 'Basic & Geometric Shapes' },
-  { id: 'diamond', label: 'Diamond', icon: Diamond, category: 'Basic & Geometric Shapes' },
   { id: 'pentagon', label: 'Pentagon (5-sided)', icon: Pentagon, category: 'Basic & Geometric Shapes' },
   { id: 'hexagon', label: 'Hexagon (6-sided)', icon: Hexagon, category: 'Basic & Geometric Shapes' },
   { id: 'heptagon', label: 'Heptagon (7-sided)', icon: HeptagonIcon, category: 'Basic & Geometric Shapes' },
   { id: 'octagon', label: 'Octagon (8-sided)', icon: Octagon, category: 'Basic & Geometric Shapes' },
   { id: 'trapezoid', label: 'Trapezoid', icon: TrapezoidIcon, category: 'Basic & Geometric Shapes' },
-  { id: 'parallelogram', label: 'Parallelogram', icon: ParallelogramIcon, category: 'Basic & Geometric Shapes' },
 
-  // 2. Lines & Curves
+  // 3. Lines & Curves
   { id: 'line', label: 'Line', icon: Minus, category: 'Lines & Curves' },
   { id: 'curve', label: 'Curve', icon: Spline, category: 'Lines & Curves' },
   { id: 'double-arrow', label: 'Double Arrow', icon: MoveHorizontal, category: 'Lines & Curves' },
@@ -407,7 +467,45 @@ export default function Toolbar({
                   </span>
                 </div>
 
-                {/* 1. Basic & Geometric Shapes */}
+                {/* 1. Flowchart & Diagramming (Miro Style) */}
+                <div className="mb-3.5 pb-2.5 border-b border-[#f1f3f5]">
+                  <div className="flex items-center justify-between mb-1.5 px-0.5">
+                    <span className="text-[10px] font-bold text-[#1971c2] uppercase tracking-wider">
+                      Flowchart & Diagramming
+                    </span>
+                    <span className="text-[9px] bg-[#e7f5ff] text-[#1971c2] px-1.5 py-0.5 rounded font-bold border border-[#d0ebff]">
+                      Miro Connectors
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {SHAPES_LIST.filter((s) => s.category === 'Flowchart & Diagramming').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          aria-label={shape.label}
+                          className={`h-8 px-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5 shrink-0" />
+                          <span className="text-[11px] font-medium truncate">{shape.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Basic & Geometric Shapes */}
                 <div className="mb-3">
                   <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
                     Basic & Geometric
@@ -571,6 +669,22 @@ export default function Toolbar({
               </div>
             )}
           </div>
+
+          {/* Smart Elbow Connector Tool (Miro style) */}
+          <button
+            onClick={() => onSelectTool('elbow-arrow')}
+            data-active={activeTool === 'elbow-arrow'}
+            title="Smart Elbow Connector (Flowcharts)"
+            className={`toolbar-btn group relative ${
+              activeTool === 'elbow-arrow' ? 'bg-[#e7f5ff] text-[#1971c2]' : ''
+            }`}
+          >
+            <ElbowArrowIcon className="w-4 h-4" />
+            <span className="hidden group-hover:flex tooltip-enter absolute -bottom-9 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-[#212529] text-white text-[11px] font-medium whitespace-nowrap shadow-md pointer-events-none z-50 items-center gap-1">
+              <span>Elbow Connector</span>
+              <span className="text-[#adb5bd] text-[10px]">(Flowchart)</span>
+            </span>
+          </button>
 
           {/* Text & Sticky Tools */}
           {ANNOTATION_TOOLS.map((tool) => {

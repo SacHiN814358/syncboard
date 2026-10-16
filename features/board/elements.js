@@ -7,7 +7,7 @@
  */
 
 /**
- * @typedef {'select' | 'pan' | 'pen' | 'brush' | 'bucket' | 'rectangle' | 'rounded-rectangle' | 'circle' | 'line' | 'curve' | 'arrow' | 'double-arrow' | 'triangle' | 'right-triangle' | 'diamond' | 'pentagon' | 'hexagon' | 'heptagon' | 'octagon' | 'trapezoid' | 'parallelogram' | 'arrow-right' | 'arrow-left' | 'arrow-up' | 'arrow-down' | 'arrow-four' | 'chevron' | 'star-4' | 'star' | 'star-6' | 'heart' | 'lightning' | 'callout-rect' | 'callout-oval' | 'callout-cloud' | 'cloud' | 'text' | 'sticky' | 'eraser'} ToolType
+ * @typedef {'select' | 'pan' | 'pen' | 'brush' | 'bucket' | 'rectangle' | 'rounded-rectangle' | 'circle' | 'line' | 'curve' | 'arrow' | 'double-arrow' | 'elbow-arrow' | 'elbow-line' | 'triangle' | 'right-triangle' | 'diamond' | 'terminator' | 'cylinder' | 'document' | 'subroutine' | 'pentagon' | 'hexagon' | 'heptagon' | 'octagon' | 'trapezoid' | 'parallelogram' | 'arrow-right' | 'arrow-left' | 'arrow-up' | 'arrow-down' | 'arrow-four' | 'chevron' | 'star-4' | 'star' | 'star-6' | 'heart' | 'lightning' | 'callout-rect' | 'callout-oval' | 'callout-cloud' | 'cloud' | 'text' | 'sticky' | 'eraser'} ToolType
  */
 
 export const BOX_SHAPES = [
@@ -16,6 +16,10 @@ export const BOX_SHAPES = [
   'triangle',
   'right-triangle',
   'diamond',
+  'terminator',
+  'cylinder',
+  'document',
+  'subroutine',
   'pentagon',
   'hexagon',
   'heptagon',
@@ -39,7 +43,7 @@ export const BOX_SHAPES = [
   'cloud',
 ]
 
-export const LINE_SHAPES = ['line', 'curve', 'arrow', 'double-arrow']
+export const LINE_SHAPES = ['line', 'curve', 'arrow', 'double-arrow', 'elbow-arrow', 'elbow-line']
 
 export const CLOSED_SHAPES = [...BOX_SHAPES, 'circle']
 

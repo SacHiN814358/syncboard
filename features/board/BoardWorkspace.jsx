@@ -653,6 +653,12 @@ export default function BoardWorkspace({ roomId }) {
         case 'a':
           setActiveTool('arrow')
           break
+        case 'c':
+          setActiveTool('elbow-arrow')
+          break
+        case 'd':
+          setActiveTool('diamond')
+          break
         case 't':
           setActiveTool('text')
           break

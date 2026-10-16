@@ -5,6 +5,9 @@
  * and element data, and draws it. No state management here.
  */
 
+import { getElementBounds, getElbowPoints } from './hitTest'
+import { BOX_SHAPES } from './elements'
+
 /**
  * Draw the dot grid background.
  * Grid is drawn in world space so it pans and zooms with the canvas.
@@ -145,6 +148,12 @@ export function drawLine(ctx, el) {
   ctx.moveTo(el.x1, el.y1)
   ctx.lineTo(el.x2, el.y2)
   ctx.stroke()
+
+  if (el.text) {
+    const midX = (el.x1 + el.x2) / 2
+    const midY = (el.y1 + el.y2) / 2
+    drawConnectorLabel(ctx, el, midX, midY)
+  }
 }
 
 /**
@@ -181,6 +190,12 @@ export function drawArrow(ctx, el) {
   )
   ctx.closePath()
   ctx.fill()
+
+  if (el.text) {
+    const midX = (el.x1 + el.x2) / 2
+    const midY = (el.y1 + el.y2) / 2
+    drawConnectorLabel(ctx, el, midX, midY)
+  }
 }
 
 /**
@@ -629,6 +644,12 @@ export function drawDoubleArrow(ctx, el) {
   ctx.lineTo(el.x1 + headLen * Math.cos(angle + headAngle), el.y1 + headLen * Math.sin(angle + headAngle))
   ctx.closePath()
   ctx.fill()
+
+  if (el.text) {
+    const midX = (el.x1 + el.x2) / 2
+    const midY = (el.y1 + el.y2) / 2
+    drawConnectorLabel(ctx, el, midX, midY)
+  }
 }
 
 export function drawRoundedRectangle(ctx, el) {
@@ -1040,6 +1061,323 @@ export function drawCurve(ctx, el) {
   ctx.moveTo(el.x1, el.y1)
   ctx.quadraticCurveTo(cpx, cpy, el.x2, el.y2)
   ctx.stroke()
+
+  if (el.text) {
+    drawConnectorLabel(ctx, el, midX, midY)
+  }
+}
+
+/**
+ * Check if a hex color is perceptually dark.
+ * @param {string} hex
+ * @returns {boolean}
+ */
+export function isDarkColor(hex) {
+  if (!hex || hex === 'transparent') return false
+  if (hex.startsWith('#')) {
+    let raw = hex.slice(1)
+    if (raw.length === 3) raw = raw.split('').map((c) => c + c).join('')
+    const r = parseInt(raw.slice(0, 2), 16) || 0
+    const g = parseInt(raw.slice(2, 4), 16) || 0
+    const b = parseInt(raw.slice(4, 6), 16) || 0
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000
+    return brightness < 135
+  }
+  return false
+}
+
+/**
+ * Draw pill badge text label on connector lines/arrows (Miro style).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {import('./elements').CanvasElement} el
+ * @param {number} midX
+ * @param {number} midY
+ */
+export function drawConnectorLabel(ctx, el, midX, midY) {
+  if (!el.text) return
+
+  ctx.save()
+  const fontSize = el.fontSize || 12
+  ctx.font = `600 ${fontSize}px Inter, system-ui, -apple-system, sans-serif`
+  const text = el.text.trim()
+  if (!text) {
+    ctx.restore()
+    return
+  }
+
+  const metrics = ctx.measureText(text)
+  const padH = 8
+  const padV = 4
+  const boxW = metrics.width + padH * 2
+  const boxH = fontSize + padV * 2
+  const boxX = midX - boxW / 2
+  const boxY = midY - boxH / 2
+
+  // Background badge with subtle shadow
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'
+  ctx.shadowBlur = 8
+  ctx.shadowOffsetX = 0
+  ctx.shadowOffsetY = 1.5
+  ctx.fillStyle = '#ffffff'
+  ctx.beginPath()
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(boxX, boxY, boxW, boxH, 6)
+  } else {
+    ctx.rect(boxX, boxY, boxW, boxH)
+  }
+  ctx.fill()
+
+  // Border badge
+  ctx.shadowColor = 'transparent'
+  ctx.strokeStyle = '#ced4da'
+  ctx.lineWidth = 1
+  ctx.stroke()
+
+  // Text label
+  ctx.fillStyle = el.textColor || el.color || '#212529'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, midX, midY)
+  ctx.restore()
+}
+
+/**
+ * Miro / Excalidraw style: Draw centered multiline text inside any closed shape.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {import('./elements').CanvasElement} el
+ */
+export function drawShapeText(ctx, el) {
+  if (!el.text) return
+
+  const bounds = getElementBounds(el)
+  if (!bounds || bounds.width < 14 || bounds.height < 14) return
+
+  ctx.save()
+  const fontSize = el.fontSize || 14
+  ctx.font = `500 ${fontSize}px Inter, system-ui, -apple-system, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  let textColor = el.textColor
+  if (!textColor) {
+    if (el.fillColor && el.fillColor !== 'transparent') {
+      textColor = isDarkColor(el.fillColor) ? '#ffffff' : '#1e293b'
+    } else {
+      textColor = isDarkColor(el.color) ? '#1e293b' : el.color
+    }
+  }
+  ctx.fillStyle = textColor
+
+  const padX = Math.min(24, bounds.width * 0.15)
+  const maxW = Math.max(10, bounds.width - padX * 2)
+  const lines = wrapText(ctx, el.text, maxW)
+  const lineHeight = fontSize * 1.35
+  const totalH = lines.length * lineHeight
+
+  const centerX = bounds.x + bounds.width / 2
+  let startY = bounds.y + (bounds.height - totalH) / 2 + lineHeight / 2
+
+  for (const line of lines) {
+    ctx.fillText(line, centerX, startY)
+    startY += lineHeight
+  }
+
+  ctx.restore()
+}
+
+/**
+ * Flowchart Terminator shape (Start / End capsule/stadium).
+ */
+export function drawTerminator(ctx, el) {
+  const r = Math.min(Math.abs(el.width), Math.abs(el.height)) / 2
+  ctx.beginPath()
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(el.x, el.y, el.width, el.height, r)
+  } else {
+    ctx.rect(el.x, el.y, el.width, el.height)
+  }
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+/**
+ * Flowchart Cylinder shape (Database / Storage).
+ */
+export function drawCylinder(ctx, el) {
+  const rx = Math.abs(el.width) / 2
+  const ry = Math.min(18, Math.abs(el.height) * 0.18)
+  const cx = el.x + rx
+  const topY = el.y + ry
+  const botY = el.y + el.height - ry
+
+  // Outer body
+  ctx.beginPath()
+  ctx.moveTo(el.x, topY)
+  ctx.lineTo(el.x, botY)
+  ctx.ellipse(cx, botY, rx, ry, 0, Math.PI, 0, false)
+  ctx.lineTo(el.x + el.width, topY)
+  ctx.ellipse(cx, topY, rx, ry, 0, 0, Math.PI, true)
+  ctx.closePath()
+
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+
+  // Top rim ellipse
+  ctx.beginPath()
+  ctx.ellipse(cx, topY, rx, ry, 0, 0, Math.PI * 2)
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.stroke()
+}
+
+/**
+ * Flowchart Document shape (Rectangle with curved wavy bottom).
+ */
+export function drawDocument(ctx, el) {
+  const wave = Math.min(16, Math.abs(el.height) * 0.15)
+  const w = el.width
+  const h = el.height
+  ctx.beginPath()
+  ctx.moveTo(el.x, el.y)
+  ctx.lineTo(el.x + w, el.y)
+  ctx.lineTo(el.x + w, el.y + h - wave)
+  ctx.bezierCurveTo(
+    el.x + w * 0.7, el.y + h + wave,
+    el.x + w * 0.3, el.y + h - wave * 2,
+    el.x, el.y + h - wave
+  )
+  ctx.closePath()
+
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+}
+
+/**
+ * Flowchart Subroutine shape (Predefined Process with inner vertical bars).
+ */
+export function drawSubroutine(ctx, el) {
+  const r = 3
+  ctx.beginPath()
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(el.x, el.y, el.width, el.height, r)
+  } else {
+    ctx.rect(el.x, el.y, el.width, el.height)
+  }
+  if (el.fillColor && el.fillColor !== 'transparent') {
+    ctx.fillStyle = el.fillColor
+    ctx.fill()
+  }
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+
+  // Inner vertical divider lines
+  const bar = Math.min(18, Math.abs(el.width) * 0.16)
+  ctx.beginPath()
+  ctx.moveTo(el.x + bar, el.y)
+  ctx.lineTo(el.x + bar, el.y + el.height)
+  ctx.moveTo(el.x + el.width - bar, el.y)
+  ctx.lineTo(el.x + el.width - bar, el.y + el.height)
+  ctx.stroke()
+}
+
+/**
+ * Draw Orthogonal (Elbow / Right-angled) Connector Line.
+ */
+export function drawElbowLine(ctx, el) {
+  const pts = getElbowPoints(el)
+  ctx.strokeStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  ctx.beginPath()
+  ctx.moveTo(pts[0].x, pts[0].y)
+  const r = 8
+  for (let i = 1; i < pts.length - 1; i++) {
+    const cur = pts[i]
+    const next = pts[i + 1]
+    ctx.arcTo(cur.x, cur.y, next.x, next.y, r)
+  }
+  ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y)
+  ctx.stroke()
+
+  if (el.text) {
+    const midX = (pts[1].x + pts[2].x) / 2
+    const midY = (pts[1].y + pts[2].y) / 2
+    drawConnectorLabel(ctx, el, midX, midY)
+  }
+}
+
+/**
+ * Draw Orthogonal (Elbow / Right-angled) Connector Arrow with arrow head at end.
+ */
+export function drawElbowArrow(ctx, el) {
+  const pts = getElbowPoints(el)
+  ctx.strokeStyle = el.color
+  ctx.fillStyle = el.color
+  ctx.lineWidth = el.strokeWidth
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  // Shaft
+  ctx.beginPath()
+  ctx.moveTo(pts[0].x, pts[0].y)
+  const r = 8
+  for (let i = 1; i < pts.length - 1; i++) {
+    const cur = pts[i]
+    const next = pts[i + 1]
+    ctx.arcTo(cur.x, cur.y, next.x, next.y, r)
+  }
+  const endPt = pts[pts.length - 1]
+  ctx.lineTo(endPt.x, endPt.y)
+  ctx.stroke()
+
+  // Arrowhead
+  const lastSegStart = pts[pts.length - 2]
+  const angle = Math.atan2(endPt.y - lastSegStart.y, endPt.x - lastSegStart.x)
+  const headLen = Math.max(10, el.strokeWidth * 4)
+  const headAngle = Math.PI / 7
+
+  ctx.beginPath()
+  ctx.moveTo(endPt.x, endPt.y)
+  ctx.lineTo(
+    endPt.x - headLen * Math.cos(angle - headAngle),
+    endPt.y - headLen * Math.sin(angle - headAngle)
+  )
+  ctx.lineTo(
+    endPt.x - headLen * Math.cos(angle + headAngle),
+    endPt.y - headLen * Math.sin(angle + headAngle)
+  )
+  ctx.closePath()
+  ctx.fill()
+
+  if (el.text) {
+    const midX = (pts[1].x + pts[2].x) / 2
+    const midY = (pts[1].y + pts[2].y) / 2
+    drawConnectorLabel(ctx, el, midX, midY)
+  }
 }
 
 /**
@@ -1065,6 +1403,18 @@ export function drawElement(ctx, el) {
       break
     case 'diamond':
       drawDiamond(ctx, el)
+      break
+    case 'terminator':
+      drawTerminator(ctx, el)
+      break
+    case 'cylinder':
+      drawCylinder(ctx, el)
+      break
+    case 'document':
+      drawDocument(ctx, el)
+      break
+    case 'subroutine':
+      drawSubroutine(ctx, el)
       break
     case 'triangle':
       drawTriangle(ctx, el)
@@ -1147,6 +1497,12 @@ export function drawElement(ctx, el) {
     case 'double-arrow':
       drawDoubleArrow(ctx, el)
       break
+    case 'elbow-arrow':
+      drawElbowArrow(ctx, el)
+      break
+    case 'elbow-line':
+      drawElbowLine(ctx, el)
+      break
     case 'text':
       drawText(ctx, el)
       break
@@ -1157,6 +1513,12 @@ export function drawElement(ctx, el) {
       drawImageElement(ctx, el)
       break
   }
+
+  // Miro / Excalidraw style: Centered text labels inside all closed vector shapes & flowchart nodes
+  if (BOX_SHAPES.includes(el.type) || el.type === 'circle') {
+    drawShapeText(ctx, el)
+  }
+
   ctx.restore()
 }
 
