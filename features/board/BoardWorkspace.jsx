@@ -21,6 +21,7 @@ import AiDiagramModal from '@/components/AiDiagramModal'
 import PdfImportModal from '@/components/PdfImportModal'
 import PasswordModal from '@/components/PasswordModal'
 import ChatDrawer from '@/components/ChatDrawer'
+import MiniMap from '@/components/MiniMap'
 import ReactionOverlay from '@/components/ReactionOverlay'
 import ReactionPicker, { EMOJI_LIST } from '@/components/ReactionPicker'
 import { useVoiceChat } from '@/features/collaboration/useVoiceChat'
@@ -1122,7 +1123,16 @@ export default function BoardWorkspace({ roomId }) {
         viewport={viewport}
       />
 
-      {/* 9. Live In-App Chat Drawer */}
+      {/* 9. Interactive MiniMap & Collaborator Radar */}
+      <MiniMap
+        elements={elements}
+        viewport={viewport}
+        onViewportChange={setViewport}
+        remoteCursors={remoteCursors}
+        collaborators={collaborators}
+      />
+
+      {/* 10. Live In-App Chat Drawer */}
       <ChatDrawer
         isOpen={chatOpen}
         onToggle={handleToggleChat}
