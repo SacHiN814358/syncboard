@@ -33,6 +33,9 @@ import toast from 'react-hot-toast'
  *   onKickUser: (userId: string, userName: string) => void,
  *   roomPassword?: string,
  *   onSetRoomPassword?: (pwd: string) => void,
+ *   roomAccessMode?: 'protected' | 'open',
+ *   onSetRoomAccessMode?: (mode: 'protected' | 'open') => void,
+ *   editKey?: string,
  * }} props
  */
 export default function InviteModal({
@@ -46,17 +49,21 @@ export default function InviteModal({
   onKickUser,
   roomPassword = '',
   onSetRoomPassword,
+  roomAccessMode = 'protected',
+  onSetRoomAccessMode,
+  editKey = '',
 }) {
   const [copiedCode, setCopiedCode] = useState(false)
   const [copiedEditorLink, setCopiedEditorLink] = useState(false)
   const [copiedViewerLink, setCopiedViewerLink] = useState(false)
+  const [copiedEditKey, setCopiedEditKey] = useState(false)
   const [pwdInput, setPwdInput] = useState(roomPassword || '')
   const [showPwd, setShowPwd] = useState(false)
 
   if (!isOpen) return null
 
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  const editorLink = `${origin}/board/${roomId}`
+  const editorLink = editKey ? `${origin}/board/${roomId}?key=${editKey}` : `${origin}/board/${roomId}`
   const viewerLink = `${origin}/board/${roomId}?mode=view`
 
   const handleCopyCode = () => {
@@ -72,7 +79,7 @@ export default function InviteModal({
     if (typeof window !== 'undefined') {
       navigator.clipboard.writeText(editorLink)
       setCopiedEditorLink(true)
-      toast.success('Editor link copied! ✏️ Anyone with link can draw')
+      toast.success('Editor link copied! ✏️ Contains secret key to draw')
       setTimeout(() => setCopiedEditorLink(false), 2500)
     }
   }
@@ -83,6 +90,24 @@ export default function InviteModal({
       setCopiedViewerLink(true)
       toast.success('Viewer link copied! 👁️ View-only access')
       setTimeout(() => setCopiedViewerLink(false), 2500)
+    }
+  }
+
+  const handleCopyEditKey = () => {
+    if (typeof window !== 'undefined' && editKey) {
+      navigator.clipboard.writeText(editKey)
+      setCopiedEditKey(true)
+      toast.success(`Editor Key ${editKey} copied! 🔑`)
+      setTimeout(() => setCopiedEditKey(false), 2500)
+    }
+  }
+
+  const handleToggleAccessMode = (newMode) => {
+    onSetRoomAccessMode?.(newMode)
+    if (newMode === 'protected') {
+      toast.success('Board set to Protected: Guests are Viewers only 🔒')
+    } else {
+      toast.success('Board set to Open: Anyone with link can draw 🔓')
     }
   }
 
@@ -208,10 +233,65 @@ export default function InviteModal({
                 value={viewerLink}
                 className="w-full text-[11px] text-amber-900 bg-white border border-amber-200 rounded-md px-2 py-1 font-mono truncate select-all outline-none"
               />
+              <p className="text-[10px] text-amber-800 flex items-center gap-1 mt-1 font-medium">
+                <Shield className="w-3 h-3 text-amber-600 shrink-0" />
+                <span>Tamper-Proof: Is link se aane wale users URL modify/edit karke bhi draw nahi kar sakte.</span>
+              </p>
             </div>
           </div>
 
-          {/* Room Code Section */}
+          {/* Guest Access Mode Switch (Host Controls) */}
+          {isHost && (
+            <div className="p-3 rounded-xl bg-[#f8f9fa] border border-[#e9ecef]">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[#212529] flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-[#1971c2]" />
+                  <span>Guest Access Mode</span>
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    roomAccessMode === 'protected'
+                      ? 'text-amber-800 bg-amber-50 border-amber-200'
+                      : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                  }`}
+                >
+                  {roomAccessMode === 'protected' ? '🔒 Viewers Only (Secure)' : '🔓 Open (Anyone can draw)'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleToggleAccessMode('protected')}
+                  className={`p-2 rounded-lg text-left border transition-all cursor-pointer ${
+                    roomAccessMode === 'protected'
+                      ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-400'
+                      : 'bg-white border-[#dee2e6] hover:bg-[#f1f3f5]'
+                  }`}
+                >
+                  <span className="text-xs font-bold text-amber-950 block">🔒 Protected (Default)</span>
+                  <span className="text-[10px] text-amber-800 block leading-tight mt-0.5">
+                    Guests are Viewers only. Modifying link will not allow editing.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleAccessMode('open')}
+                  className={`p-2 rounded-lg text-left border transition-all cursor-pointer ${
+                    roomAccessMode === 'open'
+                      ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-400'
+                      : 'bg-white border-[#dee2e6] hover:bg-[#f1f3f5]'
+                  }`}
+                >
+                  <span className="text-xs font-bold text-emerald-950 block">🔓 Open Access</span>
+                  <span className="text-[10px] text-emerald-800 block leading-tight mt-0.5">
+                    Anyone who visits can draw directly without key or passcode.
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Room Code & Editor Key Section */}
           <div>
             <label className="text-[11px] font-semibold text-[#495057] uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
               <KeyRound className="w-3.5 h-3.5 text-[#1971c2]" />
@@ -229,6 +309,25 @@ export default function InviteModal({
                 <span>{copiedCode ? 'Copied' : 'Copy Code'}</span>
               </button>
             </div>
+
+            {isHost && editKey && (
+              <div className="mt-2 flex items-center justify-between p-2 rounded-lg bg-[#e7f5ff]/60 border border-[#d0ebff] text-xs">
+                <div className="flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-[#1971c2]" />
+                  <span className="text-[#1971c2] font-semibold">Secret Editor Key:</span>
+                  <span className="font-mono font-bold text-[#1971c2] bg-white px-1.5 py-0.5 rounded border border-[#a5d8ff]">
+                    {editKey}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyEditKey}
+                  className="text-[11px] font-semibold text-[#1971c2] hover:underline cursor-pointer"
+                >
+                  {copiedEditKey ? 'Copied!' : 'Copy Key'}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Room Passcode Section (Host controls or Viewer indicator) */}

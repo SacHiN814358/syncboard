@@ -6,7 +6,7 @@ import { Toaster, toast } from 'react-hot-toast'
 import { UserX } from 'lucide-react'
 import { createHistory } from './history'
 import { DEFAULT_VIEWPORT } from './elements'
-import { generateId, generateRoomCode, processImageFile } from '@/lib/utils'
+import { generateId, generateRoomCode, processImageFile, getDeterministicEditKey } from '@/lib/utils'
 import { useCollaboration } from '@/features/collaboration/useCollaboration'
 import { useBoardStorage } from '@/features/persistence/useBoardStorage'
 import TopNav from '@/components/TopNav'
@@ -45,7 +45,11 @@ export default function BoardWorkspace({ roomId }) {
     saveBoard,
     roomPassword,
     setRoomPassword,
+    roomAccessMode,
+    setRoomAccessMode,
   } = useBoardStorage(roomId)
+
+  const editKey = getDeterministicEditKey(roomId)
 
   // 2. Document & Element State
   const [elements, setElements] = useState([])
@@ -85,11 +89,24 @@ export default function BoardWorkspace({ roomId }) {
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
 
-  // Read-Only Viewer Mode State
+  // Read-Only Viewer Mode State (Tamper-proof by default)
   const [isReadOnly, setIsReadOnly] = useState(() => {
     if (typeof window !== 'undefined') {
+      const cleanRoom = (roomId || 'DEFAULT').trim().toUpperCase()
       const searchParams = new URLSearchParams(window.location.search)
-      if (searchParams.get('mode') === 'view') return true
+      const urlKey = searchParams.get('key') || searchParams.get('token')
+      const expectedKey = getDeterministicEditKey(cleanRoom)
+      const isRoomHost = localStorage.getItem(`syncboard_host_${cleanRoom}`) === 'true'
+      const isSessionUnlocked = sessionStorage.getItem(`syncboard_unlocked_${cleanRoom}`) === 'true'
+
+      if (urlKey && urlKey.trim().toUpperCase() === expectedKey) {
+        sessionStorage.setItem(`syncboard_unlocked_${cleanRoom}`, 'true')
+        return false
+      }
+      if (isRoomHost || isSessionUnlocked) {
+        return searchParams.get('mode') === 'view'
+      }
+      return true
     }
     return false
   })
@@ -127,50 +144,77 @@ export default function BoardWorkspace({ roomId }) {
     }
   }, [roomId])
 
-  // Synchronize read-only status based on query parameter and room passcode
+  // Synchronize read-only status based on query parameter, key, access mode, and room passcode
   useEffect(() => {
     if (typeof window === 'undefined') return
     const cleanRoom = (roomId || 'DEFAULT').trim().toUpperCase()
     const searchParams = new URLSearchParams(window.location.search)
     const modeParam = searchParams.get('mode')
+    const urlKey = searchParams.get('key') || searchParams.get('token')
+    const expectedKey = getDeterministicEditKey(cleanRoom)
+    const hasValidKey = urlKey && urlKey.trim().toUpperCase() === expectedKey
     const isSessionUnlocked = sessionStorage.getItem(`syncboard_unlocked_${cleanRoom}`) === 'true'
     const isRoomHost = localStorage.getItem(`syncboard_host_${cleanRoom}`) === 'true'
 
-    if (modeParam === 'view') {
-      setIsReadOnly(true)
-      setSelectedElement(null)
+    // 1. If user arrived with a valid Editor Key in URL, automatically unlock session
+    if (hasValidKey) {
+      sessionStorage.setItem(`syncboard_unlocked_${cleanRoom}`, 'true')
+      setIsReadOnly(false)
       return
     }
 
-    if (roomPassword && !isRoomHost && !isSessionUnlocked) {
-      setIsReadOnly(true)
-      setSelectedElement(null)
+    // 2. Room Host is always editor unless explicitly testing ?mode=view
+    if (isRoomHost) {
+      if (modeParam === 'view') {
+        setIsReadOnly(true)
+        setSelectedElement(null)
+        return
+      }
+      setIsReadOnly(false)
       return
     }
 
-    setIsReadOnly(false)
-  }, [roomId, roomPassword, isHost])
+    // 3. User already authenticated / unlocked in this browser session
+    if (isSessionUnlocked) {
+      if (modeParam === 'view') {
+        setIsReadOnly(true)
+        setSelectedElement(null)
+        return
+      }
+      setIsReadOnly(false)
+      return
+    }
 
-  // Unlock full edit permissions from viewer mode
+    // 4. If host explicitly switched board to Open Collaboration
+    if (roomAccessMode === 'open') {
+      if (modeParam === 'view') {
+        setIsReadOnly(true)
+        setSelectedElement(null)
+        return
+      }
+      setIsReadOnly(false)
+      return
+    }
+
+    // 5. Default Protected Mode: Guests are Viewers only!
+    // Modifying link (removing ?mode=view or adding ?mode=edit) does NOT grant edit access!
+    setIsReadOnly(true)
+    setSelectedElement(null)
+  }, [roomId, roomPassword, roomAccessMode, isHost])
+
+  // Unlock full edit permissions from viewer mode with passcode or editor key
   const handleUnlockEditAccess = useCallback(
-    (enteredPassword) => {
+    (enteredInput) => {
       const cleanRoom = (roomId || 'DEFAULT').trim().toUpperCase()
+      const input = (enteredInput || '').trim()
+      const expectedKey = getDeterministicEditKey(cleanRoom)
 
-      if (roomPassword) {
-        if (enteredPassword.trim() === roomPassword.trim()) {
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem(`syncboard_unlocked_${cleanRoom}`, 'true')
-            const url = new URL(window.location.href)
-            url.searchParams.delete('mode')
-            window.history.replaceState({}, '', url.toString())
-          }
-          setIsReadOnly(false)
-          return true
-        } else {
-          return false
-        }
-      } else {
+      const isPasswordMatch = roomPassword && input === roomPassword.trim()
+      const isKeyMatch = input.toUpperCase() === expectedKey
+
+      if (isPasswordMatch || isKeyMatch) {
         if (typeof window !== 'undefined') {
+          sessionStorage.setItem(`syncboard_unlocked_${cleanRoom}`, 'true')
           const url = new URL(window.location.href)
           url.searchParams.delete('mode')
           window.history.replaceState({}, '', url.toString())
@@ -178,6 +222,8 @@ export default function BoardWorkspace({ roomId }) {
         setIsReadOnly(false)
         return true
       }
+
+      return false
     },
     [roomId, roomPassword]
   )
@@ -273,12 +319,19 @@ export default function BoardWorkspace({ roomId }) {
     broadcastChatMessage,
     broadcastVoicePresence,
     broadcastVoiceSignal,
+    broadcastSecurityUpdate,
     isKicked,
     kickCollaborator,
   } = useCollaboration(roomId, {
     isHost,
     currentElements: elements,
     boardTitle: boardTitle,
+    roomPassword,
+    roomAccessMode,
+    onRemoteSecurityChange: (sec) => {
+      if (sec?.roomPassword !== undefined) setRoomPassword(sec.roomPassword)
+      if (sec?.accessMode !== undefined) setRoomAccessMode(sec.accessMode)
+    },
     onRemoteElementsChange: handleRemoteElementsChange,
     onRemoteElementsDelete: handleRemoteElementsDelete,
     onRemoteElementsClear: handleRemoteElementsClear,
@@ -445,6 +498,23 @@ export default function BoardWorkspace({ roomId }) {
       broadcastReaction(emoji, pos.x, pos.y)
     },
     [broadcastReaction]
+  )
+
+  // Host security management: update passcode & access mode with live MQTT broadcast
+  const handleSetRoomPassword = useCallback(
+    (pwd) => {
+      setRoomPassword(pwd)
+      broadcastSecurityUpdate({ roomPassword: pwd, accessMode: roomAccessMode })
+    },
+    [setRoomPassword, broadcastSecurityUpdate, roomAccessMode]
+  )
+
+  const handleSetRoomAccessMode = useCallback(
+    (mode) => {
+      setRoomAccessMode(mode)
+      broadcastSecurityUpdate({ roomPassword, accessMode: mode })
+    },
+    [setRoomAccessMode, broadcastSecurityUpdate, roomPassword]
   )
 
   // Load initial board
@@ -1020,7 +1090,10 @@ export default function BoardWorkspace({ roomId }) {
         isHost={isHost}
         onKickUser={kickCollaborator}
         roomPassword={roomPassword}
-        onSetRoomPassword={setRoomPassword}
+        onSetRoomPassword={handleSetRoomPassword}
+        roomAccessMode={roomAccessMode}
+        onSetRoomAccessMode={handleSetRoomAccessMode}
+        editKey={editKey}
       />
 
       <PasswordModal

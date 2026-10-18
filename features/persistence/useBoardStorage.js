@@ -82,6 +82,12 @@ export function useBoardStorage(roomId) {
     }
     return ''
   })
+  const [roomAccessMode, setRoomAccessModeState] = useState(() => {
+    if (typeof window !== 'undefined' && roomId) {
+      return localStorage.getItem(`syncboard_access_${roomId.trim().toUpperCase()}`) || 'protected'
+    }
+    return 'protected'
+  })
   const saveTimeoutRef = useRef(null)
   const isPostgresReadyRef = useRef(false)
 
@@ -94,6 +100,15 @@ export function useBoardStorage(roomId) {
       } else {
         localStorage.removeItem(`syncboard_pwd_${cleanRoom}`)
       }
+    }
+  }, [roomId])
+
+  const setRoomAccessMode = useCallback((mode) => {
+    const cleanRoom = (roomId || 'DEFAULT').trim().toUpperCase()
+    const validMode = mode === 'open' ? 'open' : 'protected'
+    setRoomAccessModeState(validMode)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`syncboard_access_${cleanRoom}`, validMode)
     }
   }, [roomId])
 
@@ -210,5 +225,7 @@ export function useBoardStorage(roomId) {
     saveBoard,
     roomPassword,
     setRoomPassword,
+    roomAccessMode,
+    setRoomAccessMode,
   }
 }

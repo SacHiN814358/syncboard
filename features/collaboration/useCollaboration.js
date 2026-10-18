@@ -34,9 +34,12 @@ export function useCollaboration(
     onChatMessage,
     onVoicePresence,
     onVoiceSignal,
+    onRemoteSecurityChange,
     isHost = false,
     currentElements = [],
     boardTitle = '',
+    roomPassword = '',
+    roomAccessMode = 'protected',
   } = {}
 ) {
   const clientRef = useRef(null)
@@ -50,12 +53,17 @@ export function useCollaboration(
   const onChatMessageRef = useRef(onChatMessage)
   const onVoicePresenceRef = useRef(onVoicePresence)
   const onVoiceSignalRef = useRef(onVoiceSignal)
+  const onRemoteSecurityChangeRef = useRef(onRemoteSecurityChange)
   const currentElementsRef = useRef(currentElements)
   const boardTitleRef = useRef(boardTitle)
+  const roomPasswordRef = useRef(roomPassword)
+  const roomAccessModeRef = useRef(roomAccessMode)
 
   // Keep refs immediately fresh without render lag
   currentElementsRef.current = currentElements
   boardTitleRef.current = boardTitle
+  roomPasswordRef.current = roomPassword
+  roomAccessModeRef.current = roomAccessMode
   onRemoteElementsChangeRef.current = onRemoteElementsChange
   onRemoteElementsDeleteRef.current = onRemoteElementsDelete
   onRemoteElementsClearRef.current = onRemoteElementsClear
@@ -66,6 +74,7 @@ export function useCollaboration(
   onChatMessageRef.current = onChatMessage
   onVoicePresenceRef.current = onVoicePresence
   onVoiceSignalRef.current = onVoiceSignal
+  onRemoteSecurityChangeRef.current = onRemoteSecurityChange
 
   // Stable local user identity (lazy initialized on first client render)
   const [currentUser, setCurrentUser] = useState(() => {
@@ -211,6 +220,8 @@ export function useCollaboration(
                   targetId: peer.id,
                   elements: currentElementsRef.current || [],
                   title: boardTitleRef.current,
+                  roomPassword: roomPasswordRef.current || '',
+                  accessMode: roomAccessModeRef.current || 'protected',
                 })
               )
             }
@@ -227,6 +238,8 @@ export function useCollaboration(
                   targetId: payload.requesterId,
                   elements: currentElementsRef.current || [],
                   title: boardTitleRef.current,
+                  roomPassword: roomPasswordRef.current || '',
+                  accessMode: roomAccessModeRef.current || 'protected',
                 })
               )
             }
@@ -241,6 +254,21 @@ export function useCollaboration(
             if (payload.title && onRemoteTitleChangeRef.current) {
               onRemoteTitleChangeRef.current(payload.title)
             }
+            if (payload.accessMode && onRemoteSecurityChangeRef.current) {
+              onRemoteSecurityChangeRef.current({
+                roomPassword: payload.roomPassword || '',
+                accessMode: payload.accessMode || 'protected',
+              })
+            }
+            break
+          }
+
+          case 'security_update': {
+            if (payload.senderId === currentUser.id) return
+            onRemoteSecurityChangeRef.current?.({
+              roomPassword: payload.roomPassword || '',
+              accessMode: payload.accessMode || 'protected',
+            })
             break
           }
 
@@ -619,17 +647,22 @@ export function useCollaboration(
   )
 
   /**
-   * Broadcast WebRTC peer-to-peer signaling message (offer, answer, candidate).
+   * Broadcast room security settings (passcode and access mode) to all collaborators.
    */
-  const broadcastVoiceSignal = useCallback(
-    (signalPayload) => {
+  const broadcastSecurityUpdate = useCallback(
+    ({ roomPassword, accessMode }) => {
       if (!clientRef.current?.connected) return
       clientRef.current.publish(
-        `syncboard/v2/room/${cleanRoom}/voice_signal`,
-        JSON.stringify(signalPayload)
+        `syncboard/v2/room/${cleanRoom}/security_update`,
+        JSON.stringify({
+          senderId: currentUser.id,
+          roomPassword,
+          accessMode,
+        }),
+        { retain: true }
       )
     },
-    [cleanRoom]
+    [cleanRoom, currentUser]
   )
 
   return {
@@ -649,5 +682,6 @@ export function useCollaboration(
     broadcastChatMessage,
     broadcastVoicePresence,
     broadcastVoiceSignal,
+    broadcastSecurityUpdate,
   }
 }
