@@ -647,6 +647,20 @@ export function useCollaboration(
   )
 
   /**
+   * Broadcast WebRTC peer-to-peer signaling message (offer, answer, candidate).
+   */
+  const broadcastVoiceSignal = useCallback(
+    (signalPayload) => {
+      if (!clientRef.current?.connected) return
+      clientRef.current.publish(
+        `syncboard/v2/room/${cleanRoom}/voice_signal`,
+        JSON.stringify(signalPayload)
+      )
+    },
+    [cleanRoom]
+  )
+
+  /**
    * Broadcast room security settings (passcode and access mode) to all collaborators.
    */
   const broadcastSecurityUpdate = useCallback(
