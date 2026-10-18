@@ -2,29 +2,26 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  Compass,
-  Maximize2,
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  Crosshair,
-  ChevronDown,
-  ChevronUp,
-  X,
-  Radio,
-  Users,
+  Maximize2,
+  Minimize2,
+  Map as MapIcon,
+  Minus,
+  Plus,
 } from 'lucide-react'
 import { getElementBounds } from '@/features/board/hitTest'
 import { clamp } from '@/lib/utils'
 import { MIN_ZOOM, MAX_ZOOM } from '@/features/board/elements'
 
-const MAP_WIDTH = 220
-const MAP_HEIGHT = 140
+const MAP_WIDTH = 208
+const MAP_HEIGHT = 132
 
 /**
- * Interactive MiniMap & Collaborator Radar for SyncBoard.
+ * Modern, Figma-style Minimalist MiniMap & Canvas Radar.
  * Provides high-altitude canvas overview, click-to-teleport, drag-to-pan,
- * collaborator radar blips, and one-click Zoom-to-Fit.
+ * collaborator presence, and one-click Zoom-to-Fit.
  *
  * @param {{
  *   elements: any[],
@@ -50,12 +47,27 @@ export default function MiniMap({
   })
 
   const [windowDim, setWindowDim] = useState({ width: 1200, height: 800 })
+  const [isHoveringCamera, setIsHoveringCamera] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+
   const canvasRef = useRef(null)
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ mouseX: 0, mouseY: 0, startPanX: 0, startPanY: 0, scale: 1 })
-  const boundsRef = useRef({ minX: 0, minY: 0, width: 1000, height: 1000, scale: 1, offsetX: 0, offsetY: 0 })
+  const boundsRef = useRef({
+    minX: 0,
+    minY: 0,
+    width: 1000,
+    height: 1000,
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+    camX: 0,
+    camY: 0,
+    camW: 50,
+    camH: 30,
+  })
 
-  // Listen to window resize to maintain exact camera viewport proportions
+  // Listen to window resize
   useEffect(() => {
     const updateDim = () => {
       setWindowDim({ width: window.innerWidth, height: window.innerHeight })
@@ -89,7 +101,6 @@ export default function MiniMap({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Toggle open/close state and persist
   const handleToggleOpen = () => {
     setIsOpen((prev) => {
       const next = !prev
@@ -100,7 +111,7 @@ export default function MiniMap({
     })
   }
 
-  // Calculate bounding box that encloses all elements and current camera frustum
+  // Calculate bounding box that encloses elements and camera frustum
   const calculateBounds = useCallback(() => {
     const viewW = windowDim.width
     const viewH = windowDim.height
@@ -123,11 +134,10 @@ export default function MiniMap({
       if (b.y + b.height > maxY) maxY = b.y + b.height
     }
 
-    // Generous padding around the content (at least 200 world units)
-    const spanX = Math.max(maxX - minX, 600)
-    const spanY = Math.max(maxY - minY, 400)
-    const padX = spanX * 0.12
-    const padY = spanY * 0.12
+    const spanX = Math.max(maxX - minX, 500)
+    const spanY = Math.max(maxY - minY, 350)
+    const padX = spanX * 0.1
+    const padY = spanY * 0.1
 
     const finalMinX = minX - padX
     const finalMinY = minY - padY
@@ -140,6 +150,11 @@ export default function MiniMap({
     const offsetX = (MAP_WIDTH - contentW) / 2
     const offsetY = (MAP_HEIGHT - contentH) / 2
 
+    const camX = offsetX + (camLeft - finalMinX) * scale
+    const camY = offsetY + (camTop - finalMinY) * scale
+    const camW = Math.max((viewW / viewport.zoom) * scale, 12)
+    const camH = Math.max((viewH / viewport.zoom) * scale, 8)
+
     const bounds = {
       minX: finalMinX,
       minY: finalMinY,
@@ -148,16 +163,16 @@ export default function MiniMap({
       scale,
       offsetX,
       offsetY,
-      camLeft,
-      camTop,
-      camRight,
-      camBottom,
+      camX,
+      camY,
+      camW,
+      camH,
     }
     boundsRef.current = bounds
     return bounds
   }, [elements, viewport, windowDim])
 
-  // Render the miniature radar canvas
+  // Canvas drawing
   useEffect(() => {
     if (!isOpen) return
     const canvas = canvasRef.current
@@ -171,30 +186,24 @@ export default function MiniMap({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
     const bounds = calculateBounds()
-    const { minX, minY, scale, offsetX, offsetY } = bounds
+    const { minX, minY, scale, offsetX, offsetY, camX, camY, camW, camH } = bounds
 
-    // 1. Sleek Radar Blueprint Background
-    ctx.fillStyle = '#0f172a' // Dark Navy
+    // 1. Clean Canvas Paper Background
+    ctx.fillStyle = '#f8fafc' // Slate-50
     ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT)
 
-    // Subtle radar grid pattern
-    ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)'
-    ctx.lineWidth = 0.5
-    const gridSize = 22
-    for (let x = 0; x <= MAP_WIDTH; x += gridSize) {
-      ctx.beginPath()
-      ctx.moveTo(x, 0)
-      ctx.lineTo(x, MAP_HEIGHT)
-      ctx.stroke()
-    }
-    for (let y = 0; y <= MAP_HEIGHT; y += gridSize) {
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.lineTo(MAP_WIDTH, y)
-      ctx.stroke()
+    // Subtle micro dot-grid
+    ctx.fillStyle = '#cbd5e1' // Slate-300
+    const dotSpacing = 16
+    for (let x = 8; x < MAP_WIDTH; x += dotSpacing) {
+      for (let y = 8; y < MAP_HEIGHT; y += dotSpacing) {
+        ctx.beginPath()
+        ctx.arc(x, y, 0.75, 0, Math.PI * 2)
+        ctx.fill()
+      }
     }
 
-    // 2. Render Miniature Elements
+    // 2. Render Elements with Smooth Rounded Shapes
     for (const el of elements) {
       const b = getElementBounds(el)
       if (!b) continue
@@ -204,27 +213,39 @@ export default function MiniMap({
       const mw = Math.max(b.width * scale, 2)
       const mh = Math.max(b.height * scale, 2)
 
-      // Miniature Sticky Note
+      // Sticky Notes
       if (el.type === 'sticky') {
         ctx.fillStyle = el.bgColor || '#fef08a'
-        ctx.fillRect(mx, my, mw, mh)
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)'
+        if (ctx.roundRect) {
+          ctx.beginPath()
+          ctx.roundRect(mx, my, mw, mh, 2)
+          ctx.fill()
+        } else {
+          ctx.fillRect(mx, my, mw, mh)
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.1)'
         ctx.lineWidth = 0.5
-        ctx.strokeRect(mx, my, mw, mh)
+        ctx.stroke()
         continue
       }
 
-      // Miniature Text Box
+      // Text Box
       if (el.type === 'text') {
-        ctx.fillStyle = el.color || '#94a3b8'
-        ctx.fillRect(mx, my, mw, Math.max(mh, 3))
+        ctx.fillStyle = '#94a3b8'
+        if (ctx.roundRect) {
+          ctx.beginPath()
+          ctx.roundRect(mx, my, mw, Math.max(mh, 2.5), 1.5)
+          ctx.fill()
+        } else {
+          ctx.fillRect(mx, my, mw, Math.max(mh, 2.5))
+        }
         continue
       }
 
-      // Miniature Pencil / Brush stroke
+      // Pencil / Brush strokes
       if ((el.type === 'pen' || el.type === 'brush') && el.points && el.points.length > 1) {
         ctx.beginPath()
-        ctx.strokeStyle = el.color || '#38bdf8'
+        ctx.strokeStyle = el.color || '#334155'
         ctx.lineWidth = Math.max((el.strokeWidth || 2) * scale, 1)
         ctx.lineCap = 'round'
         ctx.lineJoin = 'round'
@@ -238,99 +259,89 @@ export default function MiniMap({
         continue
       }
 
-      // Miniature Shapes (rectangles, circles, diamonds, triangles, stars, etc.)
-      const strokeColor = el.color || '#38bdf8'
-      const fillColor = el.fillColor && el.fillColor !== 'transparent' ? el.fillColor : 'rgba(56, 189, 248, 0.25)'
+      // Shapes (rectangles, diamonds, triangles, circles, stars)
+      const strokeColor = el.color || '#0284c7'
+      const hasFill = el.fillColor && el.fillColor !== 'transparent'
+      const fillColor = hasFill ? el.fillColor : 'rgba(2, 132, 199, 0.15)'
 
       ctx.fillStyle = fillColor
       ctx.strokeStyle = strokeColor
-      ctx.lineWidth = Math.max((el.strokeWidth || 2) * scale, 0.8)
+      ctx.lineWidth = Math.max((el.strokeWidth || 2) * scale, 0.75)
 
       if (el.type === 'circle') {
         ctx.beginPath()
         const cx = mx + mw / 2
         const cy = my + mh / 2
-        const rx = mw / 2
-        const ry = mh / 2
-        ctx.ellipse(cx, cy, Math.max(rx, 1), Math.max(ry, 1), 0, 0, Math.PI * 2)
+        ctx.ellipse(cx, cy, Math.max(mw / 2, 1), Math.max(mh / 2, 1), 0, 0, Math.PI * 2)
         ctx.fill()
         ctx.stroke()
       } else {
-        // Box shapes / connectors / lines
-        ctx.fillRect(mx, my, mw, mh)
-        ctx.strokeRect(mx, my, mw, mh)
+        if (ctx.roundRect && mw > 4 && mh > 4) {
+          ctx.beginPath()
+          ctx.roundRect(mx, my, mw, mh, 2)
+          ctx.fill()
+          ctx.stroke()
+        } else {
+          ctx.fillRect(mx, my, mw, mh)
+          ctx.strokeRect(mx, my, mw, mh)
+        }
       }
     }
 
-    // 3. Render Active Camera Frustum (Viewport Box)
-    const camX = offsetX + (bounds.camLeft - minX) * scale
-    const camY = offsetY + (bounds.camTop - minY) * scale
-    const camW = (windowDim.width / viewport.zoom) * scale
-    const camH = (windowDim.height / viewport.zoom) * scale
+    // 3. Render Camera Viewport (Figma-Style Glass Frustum)
+    // Subtle backdrop shadow
+    ctx.shadowColor = 'rgba(25, 113, 194, 0.2)'
+    ctx.shadowBlur = 6
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 1
 
-    // Viewport glow & fill
-    ctx.fillStyle = 'rgba(59, 130, 246, 0.16)'
-    ctx.fillRect(camX, camY, camW, camH)
+    // Translucent soft blue glass fill
+    ctx.fillStyle = 'rgba(25, 113, 194, 0.08)'
+    if (ctx.roundRect) {
+      ctx.beginPath()
+      ctx.roundRect(camX, camY, camW, camH, 3)
+      ctx.fill()
+    } else {
+      ctx.fillRect(camX, camY, camW, camH)
+    }
 
-    // Viewport border
-    ctx.strokeStyle = '#60a5fa' // Bright Blue
+    // Clean brand blue border
+    ctx.shadowColor = 'transparent'
+    ctx.strokeStyle = '#1971c2'
     ctx.lineWidth = 1.5
-    ctx.strokeRect(camX, camY, camW, camH)
+    if (ctx.roundRect) {
+      ctx.beginPath()
+      ctx.roundRect(camX, camY, camW, camH, 3)
+      ctx.stroke()
+    } else {
+      ctx.strokeRect(camX, camY, camW, camH)
+    }
 
-    // Camera Corner brackets for tactile feel
-    const cornerSize = Math.min(Math.max(camW * 0.15, 4), 8)
-    ctx.strokeStyle = '#93c5fd'
-    ctx.lineWidth = 2
-    // Top-left
-    ctx.beginPath()
-    ctx.moveTo(camX, camY + cornerSize)
-    ctx.lineTo(camX, camY)
-    ctx.lineTo(camX + cornerSize, camY)
-    ctx.stroke()
-    // Top-right
-    ctx.beginPath()
-    ctx.moveTo(camX + camW - cornerSize, camY)
-    ctx.lineTo(camX + camW, camY)
-    ctx.lineTo(camX + camW, camY + cornerSize)
-    ctx.stroke()
-    // Bottom-left
-    ctx.beginPath()
-    ctx.moveTo(camX, camY + camH - cornerSize)
-    ctx.lineTo(camX, camY + camH)
-    ctx.lineTo(camX + cornerSize, camY + camH)
-    ctx.stroke()
-    // Bottom-right
-    ctx.beginPath()
-    ctx.moveTo(camX + camW - cornerSize, camY + camH)
-    ctx.lineTo(camX + camW, camY + camH)
-    ctx.lineTo(camX + camW, camY + camH - cornerSize)
-    ctx.stroke()
-
-    // 4. Render Collaborator Radar Blips
+    // 4. Collaborator Presence Dots
     const activeCursors = Object.entries(remoteCursors || {})
     for (const [userId, cur] of activeCursors) {
       if (cur.x === undefined || cur.y === undefined) continue
       const rx = offsetX + (cur.x - minX) * scale
       const ry = offsetY + (cur.y - minY) * scale
 
-      // Radar pulse ring
+      // Soft halo
       ctx.beginPath()
-      ctx.arc(rx, ry, 6, 0, Math.PI * 2)
-      ctx.fillStyle = `${cur.color || '#10b981'}44`
+      ctx.arc(rx, ry, 5, 0, Math.PI * 2)
+      ctx.fillStyle = `${cur.color || '#10b981'}33`
       ctx.fill()
 
-      // Radar solid center
+      // Avatar circle with crisp white outline
       ctx.beginPath()
-      ctx.arc(rx, ry, 3, 0, Math.PI * 2)
+      ctx.arc(rx, ry, 2.5, 0, Math.PI * 2)
       ctx.fillStyle = cur.color || '#10b981'
       ctx.fill()
       ctx.strokeStyle = '#ffffff'
-      ctx.lineWidth = 0.8
+      ctx.lineWidth = 0.75
       ctx.stroke()
     }
   }, [elements, viewport, windowDim, remoteCursors, isOpen, calculateBounds])
 
-  // MiniMap Pointer Down: Teleport or initiate live drag
+  // Pointer Down: Click to teleport or start dragging camera
   const handlePointerDown = (e) => {
     e.preventDefault()
     e.stopPropagation()
@@ -339,31 +350,26 @@ export default function MiniMap({
 
     canvas.setPointerCapture(e.pointerId)
     isDraggingRef.current = true
+    setIsDragging(true)
 
     const rect = canvas.getBoundingClientRect()
     const clickMiniX = e.clientX - rect.left
     const clickMiniY = e.clientY - rect.top
 
-    const { minX, minY, scale, offsetX, offsetY, camLeft, camTop } = boundsRef.current
+    const { minX, minY, scale, offsetX, offsetY, camX, camY, camW, camH } = boundsRef.current
 
-    // World coordinate under pointer
-    const targetWorldX = minX + (clickMiniX - offsetX) / scale
-    const targetWorldY = minY + (clickMiniY - offsetY) / scale
-
-    // Check if clicked inside existing camera box: if yes, start drag; if no, teleport center first
-    const camMiniX = offsetX + (camLeft - minX) * scale
-    const camMiniY = offsetY + (camTop - minY) * scale
-    const camW = (windowDim.width / viewport.zoom) * scale
-    const camH = (windowDim.height / viewport.zoom) * scale
-
+    // Check if clicked inside camera box
     const isInsideCamera =
-      clickMiniX >= camMiniX &&
-      clickMiniX <= camMiniX + camW &&
-      clickMiniY >= camMiniY &&
-      clickMiniY <= camMiniY + camH
+      clickMiniX >= camX &&
+      clickMiniX <= camX + camW &&
+      clickMiniY >= camY &&
+      clickMiniY <= camY + camH
 
     if (!isInsideCamera) {
-      // Teleport camera so center of screen is at target world coordinate
+      // Teleport camera center to clicked position
+      const targetWorldX = minX + (clickMiniX - offsetX) / scale
+      const targetWorldY = minY + (clickMiniY - offsetY) / scale
+
       const newPanX = windowDim.width / 2 - targetWorldX * viewport.zoom
       const newPanY = windowDim.height / 2 - targetWorldY * viewport.zoom
       onViewportChange({ ...viewport, panX: newPanX, panY: newPanY })
@@ -386,8 +392,19 @@ export default function MiniMap({
     }
   }
 
-  // MiniMap Pointer Move: Real-time Camera Frustum Dragging
+  // Pointer Move: Drag camera frustum
   const handlePointerMove = (e) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    // Update cursor hover state
+    const rect = canvas.getBoundingClientRect()
+    const px = e.clientX - rect.left
+    const py = e.clientY - rect.top
+    const { camX, camY, camW, camH } = boundsRef.current
+    const inside = px >= camX && px <= camX + camW && py >= camY && py <= camY + camH
+    setIsHoveringCamera(inside)
+
     if (!isDraggingRef.current) return
     e.preventDefault()
     e.stopPropagation()
@@ -396,11 +413,9 @@ export default function MiniMap({
     const dx = e.clientX - mouseX
     const dy = e.clientY - mouseY
 
-    // Convert pixel delta on minimap into world units delta
     const worldDeltaX = dx / scale
     const worldDeltaY = dy / scale
 
-    // In screen-space, moving camera right pans canvas left
     const newPanX = startPanX - worldDeltaX * viewport.zoom
     const newPanY = startPanY - worldDeltaY * viewport.zoom
 
@@ -410,13 +425,14 @@ export default function MiniMap({
   const handlePointerUp = (e) => {
     if (isDraggingRef.current) {
       isDraggingRef.current = false
+      setIsDragging(false)
       try {
         canvasRef.current?.releasePointerCapture(e.pointerId)
       } catch (_) {}
     }
   }
 
-  // Fit all elements into view (Zoom to Fit)
+  // Zoom to Fit Content
   const handleZoomToFit = useCallback(() => {
     if (!elements || elements.length === 0) {
       onViewportChange({ panX: 0, panY: 0, zoom: 1 })
@@ -447,9 +463,8 @@ export default function MiniMap({
     const centerX = minX + contentW / 2
     const centerY = minY + contentH / 2
 
-    // Screen padding (120px)
-    const availW = Math.max(windowDim.width - 240, 200)
-    const availH = Math.max(windowDim.height - 240, 200)
+    const availW = Math.max(windowDim.width - 200, 200)
+    const availH = Math.max(windowDim.height - 200, 200)
 
     const fitZoom = clamp(Math.min(availW / contentW, availH / contentH), MIN_ZOOM, 1.5)
     const newPanX = windowDim.width / 2 - centerX * fitZoom
@@ -458,12 +473,12 @@ export default function MiniMap({
     onViewportChange({ panX: newPanX, panY: newPanY, zoom: fitZoom })
   }, [elements, windowDim, onViewportChange])
 
-  // Zoom In step
-  const handleZoomIn = () => {
+  // Zoom In / Out
+  const handleZoomDelta = (factor) => {
     const centerScreenX = windowDim.width / 2
     const centerScreenY = windowDim.height / 2
     const oldZoom = viewport.zoom
-    const newZoom = clamp(oldZoom * 1.25, MIN_ZOOM, MAX_ZOOM)
+    const newZoom = clamp(oldZoom * factor, MIN_ZOOM, MAX_ZOOM)
     const worldX = (centerScreenX - viewport.panX) / oldZoom
     const worldY = (centerScreenY - viewport.panY) / oldZoom
     onViewportChange({
@@ -473,22 +488,7 @@ export default function MiniMap({
     })
   }
 
-  // Zoom Out step
-  const handleZoomOut = () => {
-    const centerScreenX = windowDim.width / 2
-    const centerScreenY = windowDim.height / 2
-    const oldZoom = viewport.zoom
-    const newZoom = clamp(oldZoom / 1.25, MIN_ZOOM, MAX_ZOOM)
-    const worldX = (centerScreenX - viewport.panX) / oldZoom
-    const worldY = (centerScreenY - viewport.panY) / oldZoom
-    onViewportChange({
-      panX: centerScreenX - worldX * newZoom,
-      panY: centerScreenY - worldY * newZoom,
-      zoom: newZoom,
-    })
-  }
-
-  // Reset Zoom to 100%
+  // Reset to 100%
   const handleResetZoom = () => {
     const centerScreenX = windowDim.width / 2
     const centerScreenY = windowDim.height / 2
@@ -503,28 +503,18 @@ export default function MiniMap({
     })
   }
 
-  const activeCollaboratorCount = Object.keys(remoteCursors || {}).length
-
-  // Minimized Trigger Pill
+  // Minimized Compact Pill
   if (!isOpen) {
     return (
       <div className="fixed bottom-5 right-20 z-30 select-none animate-in fade-in duration-150">
         <button
           onClick={handleToggleOpen}
-          className="h-10 px-3 rounded-full bg-white/95 backdrop-blur-md text-[#495057] hover:text-[#1971c2] shadow-lg hover:shadow-xl border border-[#dee2e6] hover:border-[#1971c2]/40 flex items-center gap-2 text-xs font-semibold transition-all cursor-pointer group"
-          title="Open MiniMap & Radar (Hotkey: M)"
+          className="h-9 px-3 rounded-xl bg-white/95 backdrop-blur-md text-[#495057] hover:text-[#1971c2] shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:shadow-md border border-[#e2e8f0] flex items-center gap-2 text-xs font-semibold transition-all cursor-pointer group"
+          title="Show Canvas Map (M)"
         >
-          <div className="relative flex items-center justify-center">
-            <Compass className="w-4 h-4 text-[#1971c2] group-hover:rotate-45 transition-transform duration-300" />
-            {activeCollaboratorCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-            )}
-          </div>
-          <span className="font-mono text-[11px] text-[#212529] font-bold">
+          <MapIcon className="w-3.5 h-3.5 text-[#1971c2] group-hover:scale-110 transition-transform" />
+          <span className="font-mono text-[11px] text-[#212529]">
             {Math.round(viewport.zoom * 100)}%
-          </span>
-          <span className="text-[10px] text-[#868e96] bg-[#f1f3f5] px-1.5 py-0.5 rounded-md font-mono hidden sm:inline">
-            M
           </span>
         </button>
       </div>
@@ -532,90 +522,67 @@ export default function MiniMap({
   }
 
   return (
-    <div className="fixed bottom-5 right-20 z-30 select-none animate-in slide-in-from-bottom-2 fade-in duration-150">
-      <div className="bg-[#0f172a]/95 backdrop-blur-md rounded-2xl border border-slate-700/80 shadow-[0_12px_36px_-6px_rgba(0,0,0,0.5)] overflow-hidden w-[220px]">
-        {/* Header Bar */}
-        <div className="px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-xs text-slate-300">
-          <div className="flex items-center gap-1.5">
-            <Radio className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
-            <span className="font-bold text-[11px] tracking-wide text-white uppercase">
-              Radar Map
-            </span>
-            {activeCollaboratorCount > 0 && (
-              <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.2 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                {activeCollaboratorCount}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] font-mono text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded">
-              {Math.round(viewport.zoom * 100)}%
-            </span>
-            <button
-              onClick={handleToggleOpen}
-              className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Minimize MiniMap (Hotkey: M)"
-            >
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* MiniMap Canvas View */}
-        <div className="relative w-[220px] h-[140px] bg-[#0f172a] cursor-crosshair overflow-hidden group">
+    <div className="fixed bottom-5 right-20 z-30 select-none animate-in fade-in zoom-in-95 duration-150 group">
+      <div className="bg-white/95 backdrop-blur-xl rounded-2xl border border-[#e2e8f0] shadow-[0_12px_36px_-6px_rgba(0,0,0,0.14)] overflow-hidden w-[208px]">
+        {/* Canvas Preview */}
+        <div className="relative w-[208px] h-[132px] overflow-hidden bg-[#f8fafc]">
           <canvas
             ref={canvasRef}
             style={{ width: MAP_WIDTH, height: MAP_HEIGHT }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            className="w-full h-full block touch-none"
+            className={`w-full h-full block touch-none ${
+              isDragging ? 'cursor-grabbing' : isHoveringCamera ? 'cursor-grab' : 'cursor-crosshair'
+            }`}
           />
 
-          {/* Helper hint on hover */}
-          <div className="absolute top-1 left-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-slate-400 bg-slate-900/80 px-1.5 py-0.5 rounded font-mono">
-            Click / Drag to Pan
-          </div>
+          {/* Minimal Floating Minimize Button (top-right) */}
+          <button
+            onClick={handleToggleOpen}
+            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-md bg-white/80 hover:bg-white text-[#868e96] hover:text-[#212529] shadow-xs flex items-center justify-center transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+            title="Minimize Map (M)"
+          >
+            <Minus className="w-3 h-3" />
+          </button>
         </div>
 
-        {/* Quick View Controls Bar */}
-        <div className="px-2 py-1.5 border-t border-slate-800/80 bg-slate-900/60 flex items-center justify-between gap-1 text-slate-400">
-          {/* Zoom In / Out */}
-          <div className="flex items-center gap-0.5">
+        {/* Minimal Bottom Controls Pill */}
+        <div className="px-2 py-1.5 border-t border-[#f1f3f5] bg-white flex items-center justify-between text-xs text-[#495057]">
+          {/* Zoom Percentage (click to 100%) */}
+          <button
+            onClick={handleResetZoom}
+            className="px-1.5 py-0.5 rounded-md font-mono text-[11px] font-bold text-[#495057] hover:text-[#1971c2] hover:bg-[#f1f3f5] transition-colors cursor-pointer"
+            title="Reset to 100%"
+          >
+            {Math.round(viewport.zoom * 100)}%
+          </button>
+
+          {/* Zoom Buttons & Fit */}
+          <div className="flex items-center gap-1">
             <button
-              onClick={handleZoomOut}
-              className="p-1 rounded hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Zoom Out (Ctrl -)"
+              onClick={() => handleZoomDelta(1 / 1.25)}
+              className="w-5 h-5 rounded-md hover:bg-[#f1f3f5] flex items-center justify-center text-[#495057] hover:text-[#212529] transition-colors cursor-pointer"
+              title="Zoom Out"
             >
-              <ZoomOut className="w-3.5 h-3.5" />
+              <Minus className="w-3 h-3" />
             </button>
             <button
-              onClick={handleResetZoom}
-              className="p-1 rounded hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Reset Zoom to 100%"
+              onClick={() => handleZoomDelta(1.25)}
+              className="w-5 h-5 rounded-md hover:bg-[#f1f3f5] flex items-center justify-center text-[#495057] hover:text-[#212529] transition-colors cursor-pointer"
+              title="Zoom In"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <Plus className="w-3 h-3" />
             </button>
             <button
-              onClick={handleZoomIn}
-              className="p-1 rounded hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Zoom In (Ctrl +)"
+              onClick={handleZoomToFit}
+              className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-[#1971c2] hover:bg-[#e7f5ff] flex items-center gap-1 transition-colors cursor-pointer"
+              title="Fit all elements to screen"
             >
-              <ZoomIn className="w-3.5 h-3.5" />
+              <Maximize2 className="w-3 h-3" />
+              <span>Fit</span>
             </button>
           </div>
-
-          {/* Fit all elements to view */}
-          <button
-            onClick={handleZoomToFit}
-            className="px-2 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-sky-300 border border-sky-500/20 text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
-            title="Fit all shapes & drawings to screen"
-          >
-            <Crosshair className="w-3 h-3" />
-            <span>Fit All</span>
-          </button>
         </div>
       </div>
     </div>
