@@ -366,7 +366,7 @@ export default function Toolbar({
 
   return (
     <div className="fixed top-15 left-1/2 -translate-x-1/2 z-30 max-w-[98vw]">
-      <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-[#e9ecef] shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] select-none">
+      <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-[#e9ecef] shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] select-none overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
         {/* Undo / Redo */}
         <div className="flex items-center gap-0.5">
           <button

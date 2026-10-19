@@ -99,6 +99,15 @@
   border-radius: 9999px;
 }
 
+/* Hide scrollbar for toolbar horizontal scroll */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Live Emoji Reaction float animation */
 @keyframes floatReaction {
   0% {
