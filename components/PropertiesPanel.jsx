@@ -74,6 +74,16 @@ export default function PropertiesPanel({
     CLOSED_SHAPES.includes(selectedElement.type) &&
     !isStamp
 
+  const safeStroke = typeof currentColor === 'string' ? currentColor : '#1971c2'
+  const safeFill = typeof currentFillColor === 'string' ? currentFillColor : 'transparent'
+  const strokeInputHex = safeStroke.startsWith('#') && safeStroke.length === 7 ? safeStroke : '#1971c2'
+  const fillInputHex = safeFill.startsWith('#')
+    ? (safeFill.length === 7 ? safeFill : safeFill.slice(0, 7))
+    : '#1971c2'
+  const isFillTransparent = safeFill === 'transparent'
+  const isFillTint = safeFill.endsWith('18') || safeFill.endsWith('22')
+  const isFillSolid = !isFillTransparent && !isFillTint
+
   return (
     <div className="fixed top-32 left-6 z-20">
       <div className="w-56 p-3 rounded-xl bg-white/95 backdrop-blur-md border border-[#e9ecef] shadow-[0_6px_24px_-4px_rgba(0,0,0,0.10)] space-y-3 select-none text-xs">
@@ -96,7 +106,7 @@ export default function PropertiesPanel({
                 {isText ? 'Text Color' : 'Stroke Color'}
               </span>
               <label
-                title={`Custom Color Picker (${currentColor})`}
+                title={`Custom Color Picker (${safeStroke})`}
                 className="relative w-5 h-5 rounded-full cursor-pointer flex items-center justify-center border border-[#dee2e6] hover:scale-110 active:scale-95 transition-transform overflow-hidden shadow-xs"
                 style={{
                   background:
@@ -105,15 +115,11 @@ export default function PropertiesPanel({
               >
                 <div
                   className="w-2 h-2 rounded-full border border-white/90"
-                  style={{ backgroundColor: currentColor }}
+                  style={{ backgroundColor: safeStroke }}
                 />
                 <input
                   type="color"
-                  value={
-                    currentColor.startsWith('#') && currentColor.length === 7
-                      ? currentColor
-                      : '#000000'
-                  }
+                  value={strokeInputHex}
                   onChange={(e) => onChangeColor(e.target.value)}
                   className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                 />
@@ -121,7 +127,7 @@ export default function PropertiesPanel({
             </div>
             <div className="grid grid-cols-4 gap-1.5">
               {COLORS.map((c) => {
-                const isSelected = currentColor === c
+                const isSelected = safeStroke === c
                 return (
                   <button
                     key={c}
@@ -200,7 +206,7 @@ export default function PropertiesPanel({
                 Fill Color
               </span>
               <label
-                title={`Custom Fill Color Picker (${currentFillColor})`}
+                title={`Custom Fill Color Picker (${safeFill})`}
                 className="relative w-5 h-5 rounded-full cursor-pointer flex items-center justify-center border border-[#dee2e6] hover:scale-110 active:scale-95 transition-transform overflow-hidden shadow-xs"
                 style={{
                   background:
@@ -211,16 +217,12 @@ export default function PropertiesPanel({
                   className="w-2 h-2 rounded-full border border-white/90"
                   style={{
                     backgroundColor:
-                      currentFillColor === 'transparent' ? '#ffffff' : currentFillColor,
+                      isFillTransparent ? '#ffffff' : safeFill,
                   }}
                 />
                 <input
                   type="color"
-                  value={
-                    currentFillColor.startsWith('#') && currentFillColor.length === 7
-                      ? currentFillColor
-                      : '#1971c2'
-                  }
+                  value={fillInputHex}
                   onChange={(e) => onChangeFillColor(e.target.value)}
                   className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                 />
@@ -232,7 +234,7 @@ export default function PropertiesPanel({
               <button
                 onClick={() => onChangeFillColor('transparent')}
                 className={`py-1 rounded-md text-[11px] font-medium transition-all ${
-                  currentFillColor === 'transparent'
+                  isFillTransparent
                     ? 'bg-white text-[#212529] shadow-xs'
                     : 'text-[#868e96] hover:text-[#212529]'
                 }`}
@@ -242,13 +244,11 @@ export default function PropertiesPanel({
               <button
                 onClick={() =>
                   onChangeFillColor(
-                    currentFillColor === 'transparent' ? currentColor : currentFillColor
+                    isFillTransparent ? safeStroke : (safeFill.length === 9 ? safeFill.slice(0, 7) : safeFill)
                   )
                 }
                 className={`py-1 rounded-md text-[11px] font-medium transition-all ${
-                  currentFillColor !== 'transparent' &&
-                  !currentFillColor.endsWith('18') &&
-                  !currentFillColor.endsWith('22')
+                  isFillSolid
                     ? 'bg-white text-[#212529] shadow-xs'
                     : 'text-[#868e96] hover:text-[#212529]'
                 }`}
@@ -256,9 +256,9 @@ export default function PropertiesPanel({
                 Solid
               </button>
               <button
-                onClick={() => onChangeFillColor(`${currentColor}22`)}
+                onClick={() => onChangeFillColor(`${safeStroke}22`)}
                 className={`py-1 rounded-md text-[11px] font-medium transition-all ${
-                  currentFillColor.endsWith('18') || currentFillColor.endsWith('22')
+                  isFillTint
                     ? 'bg-white text-[#212529] shadow-xs'
                     : 'text-[#868e96] hover:text-[#212529]'
                 }`}
@@ -268,10 +268,10 @@ export default function PropertiesPanel({
             </div>
 
             {/* Fill Color Swatches (when Fill is active) */}
-            {currentFillColor !== 'transparent' && (
+            {!isFillTransparent && (
               <div className="grid grid-cols-4 gap-1.5 pt-1">
                 {COLORS.map((c) => {
-                  const isSelected = currentFillColor === c
+                  const isSelected = safeFill === c
                   return (
                     <button
                       key={c}

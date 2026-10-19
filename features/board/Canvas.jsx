@@ -653,55 +653,63 @@ export default function Canvas({
         needsRepaintRef.current = true
       } else {
         // No native shape was hit -> Run MS Paint Flood Fill on freehand drawings / closed regions!
-        const result = performFloodFill({
-          worldX: world.x,
-          worldY: world.y,
-          elements: currentListForBucket,
-          fillColor: fillToApply,
-        })
+        try {
+          const result = performFloodFill({
+            worldX: world.x,
+            worldY: world.y,
+            elements: currentListForBucket,
+            fillColor: fillToApply,
+          })
 
-        if (result.success && result.element) {
-          // Find the earliest overlapping pen/line element to insert underneath stroke outlines
-          const newEl = result.element
-          const bNew = { x: newEl.x, y: newEl.y, width: newEl.width, height: newEl.height }
-          let insertIdx = currentListForBucket.length
+          if (result.success && result.element) {
+            // Find the earliest overlapping pen/line element to insert underneath stroke outlines
+            const newEl = result.element
+            const bNew = { x: newEl.x, y: newEl.y, width: newEl.width, height: newEl.height }
+            let insertIdx = currentListForBucket.length
 
-          for (let i = 0; i < currentListForBucket.length; i++) {
-            const item = currentListForBucket[i]
-            if (item.type === 'pen' || item.type === 'brush' || LINE_SHAPES.includes(item.type)) {
-              const bItem = getElementBounds(item)
-              if (
-                bItem &&
-                bItem.x < bNew.x + bNew.width &&
-                bItem.x + bItem.width > bNew.x &&
-                bItem.y < bNew.y + bNew.height &&
-                bItem.y + bItem.height > bNew.y
-              ) {
-                insertIdx = i
-                break
+            for (let i = 0; i < currentListForBucket.length; i++) {
+              const item = currentListForBucket[i]
+              if (item.type === 'pen' || item.type === 'brush' || LINE_SHAPES.includes(item.type)) {
+                const bItem = getElementBounds(item)
+                if (
+                  bItem &&
+                  bItem.x < bNew.x + bNew.width &&
+                  bItem.x + bItem.width > bNew.x &&
+                  bItem.y < bNew.y + bNew.height &&
+                  bItem.y + bItem.height > bNew.y
+                ) {
+                  insertIdx = i
+                  break
+                }
               }
             }
-          }
 
-          const updated = [...currentListForBucket]
-          updated.splice(insertIdx, 0, newEl)
-          elementsRef.current = updated
-          onElementsChange(updated)
-          onSelectElement(newEl)
-          toast.success('Freehand region filled! 🎨', { id: 'fill-toast', duration: 1200 })
-          needsRepaintRef.current = true
-        } else if (result.reason === 'unbounded') {
-          toast.error(
-            result.message || 'Region is not closed! Please close any gaps in your drawing 🎨',
-            {
+            const updated = [...currentListForBucket]
+            updated.splice(insertIdx, 0, newEl)
+            elementsRef.current = updated
+            onElementsChange(updated)
+            onSelectElement(newEl)
+            toast.success('Freehand region filled! 🎨', { id: 'fill-toast', duration: 1200 })
+            needsRepaintRef.current = true
+          } else if (result.reason === 'unbounded') {
+            toast.error(
+              result.message || 'Region is not closed! Please close any gaps in your drawing 🎨',
+              {
+                id: 'fill-toast',
+                duration: 2500,
+              }
+            )
+          } else if (result.reason === 'already_filled') {
+            toast(result.message || 'Region is already filled with this color', {
               id: 'fill-toast',
-              duration: 2500,
-            }
-          )
-        } else if (result.reason === 'already_filled') {
-          toast(result.message || 'Region is already filled with this color', {
+              duration: 1200,
+            })
+          }
+        } catch (fillErr) {
+          console.warn('Flood fill caught error:', fillErr)
+          toast.error('Could not fill area. Please draw a closed shape first 🎨', {
             id: 'fill-toast',
-            duration: 1200,
+            duration: 2000,
           })
         }
       }

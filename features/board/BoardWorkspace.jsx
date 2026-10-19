@@ -941,7 +941,7 @@ export default function BoardWorkspace({ roomId }) {
           currentFillColor={
             selectedElement?.fillColor && selectedElement.fillColor !== 'transparent'
               ? selectedElement.fillColor
-              : currentFillColor
+              : (currentFillColor || 'transparent')
           }
           onChangeFillColor={(fill) => {
             setCurrentFillColor(fill)
@@ -988,9 +988,9 @@ export default function BoardWorkspace({ roomId }) {
           currentColor={selectedElement?.color || currentColor}
           currentStrokeWidth={selectedElement?.strokeWidth || currentStrokeWidth}
           currentFillColor={
-            selectedElement?.fillColor !== undefined
+            selectedElement?.fillColor !== undefined && selectedElement?.fillColor !== null
               ? selectedElement.fillColor
-              : currentFillColor
+              : (currentFillColor || 'transparent')
           }
           currentStickyColor={selectedElement?.bgColor || currentStickyColor}
           currentFontSize={selectedElement?.fontSize || currentFontSize}

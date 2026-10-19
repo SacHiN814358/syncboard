@@ -24,7 +24,7 @@ import { getElementBounds } from './hitTest'
  * @returns {{r: number, g: number, b: number, a: number}}
  */
 export function hexToRgb(hex) {
-  if (!hex || hex === 'transparent') {
+  if (!hex || typeof hex !== 'string' || hex === 'transparent') {
     return { r: 0, g: 0, b: 0, a: 0 }
   }
 
@@ -129,7 +129,12 @@ export function performFloodFill({
     return { success: false, reason: 'error', message: 'Click coordinates outside buffer' }
   }
 
-  const imgData = ctx.getImageData(0, 0, width, height)
+  let imgData
+  try {
+    imgData = ctx.getImageData(0, 0, width, height)
+  } catch (err) {
+    return { success: false, reason: 'error', message: 'Could not access canvas image data' }
+  }
   const data = imgData.data
 
   let seedIdx = (startY * width + startX) * 4

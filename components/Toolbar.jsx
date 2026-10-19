@@ -262,9 +262,16 @@ export default function Toolbar({
   onChangeStampEmoji,
 }) {
   const [activeColorSlot, setActiveColorSlot] = useState('stroke') // 'stroke' | 'fill'
-  const isCustomColor = !COLORS.includes(
-    activeColorSlot === 'stroke' ? currentColor : currentFillColor
-  )
+  const safeCurrentColor = typeof currentColor === 'string' ? currentColor : '#1971c2'
+  const safeFillColor = typeof currentFillColor === 'string' ? currentFillColor : 'transparent'
+  const activeColor = activeColorSlot === 'stroke' ? safeCurrentColor : safeFillColor
+  const activeColorHex = typeof activeColor === 'string' && activeColor.startsWith('#')
+    ? (activeColor.length === 7 ? activeColor : activeColor.slice(0, 7))
+    : '#1971c2'
+  const activeColorDisplayHex = typeof activeColor === 'string' && activeColor.startsWith('#')
+    ? activeColor.replace('#', '').slice(0, 6)
+    : ''
+  const isCustomColor = !COLORS.includes(activeColor)
   const [hasEyeDropper, setHasEyeDropper] = useState(false)
   const [shapesOpen, setShapesOpen] = useState(false)
   const [stampPickerOpen, setStampPickerOpen] = useState(false)
@@ -329,11 +336,8 @@ export default function Toolbar({
   useEffect(() => {
     if (activeTool === 'bucket') {
       setActiveColorSlot('fill')
-      if (currentFillColor === 'transparent') {
-        onChangeFillColor?.(currentColor)
-      }
     }
-  }, [activeTool, currentFillColor, currentColor, onChangeFillColor])
+  }, [activeTool])
 
   // Close dropdown on click outside or Escape
   useEffect(() => {
@@ -507,10 +511,9 @@ export default function Toolbar({
                   onSelectTool(tool.id)
                   if (tool.id === 'bucket') {
                     setActiveColorSlot('fill')
-                    if (currentFillColor === 'transparent') {
-                      onChangeFillColor?.(currentColor)
+                    if (safeFillColor === 'transparent') {
+                      onChangeFillColor?.(safeCurrentColor)
                     }
-                    setColorPickerOpen(true)
                   }
                 }}
                 data-active={isActive}
@@ -690,7 +693,7 @@ export default function Toolbar({
           >
             <div
               className="w-3.5 h-3.5 rounded-full border border-black/20 shadow-xs"
-              style={{ backgroundColor: currentColor }}
+              style={{ backgroundColor: safeCurrentColor }}
             />
             <span className="text-[11px]">Stroke</span>
           </button>
@@ -699,8 +702,8 @@ export default function Toolbar({
           <button
             onClick={() => {
               setActiveColorSlot('fill')
-              if (currentFillColor === 'transparent') {
-                onChangeFillColor?.(currentColor)
+              if (safeFillColor === 'transparent') {
+                onChangeFillColor?.(safeCurrentColor)
               }
               setColorPickerOpen((prev) => !prev)
             }}
@@ -714,10 +717,10 @@ export default function Toolbar({
             <div
               className="w-3.5 h-3.5 rounded-full border border-black/20 shadow-xs relative overflow-hidden"
               style={{
-                backgroundColor: currentFillColor === 'transparent' ? '#ffffff' : currentFillColor,
+                backgroundColor: safeFillColor === 'transparent' ? '#ffffff' : safeFillColor,
               }}
             >
-              {currentFillColor === 'transparent' && (
+              {safeFillColor === 'transparent' && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="w-full h-0.5 bg-red-500 rotate-45 transform" />
                 </div>
@@ -728,7 +731,7 @@ export default function Toolbar({
         </div>
 
         {/* Quick No-Fill Button (when fill slot is active) */}
-        {activeColorSlot === 'fill' && currentFillColor !== 'transparent' && (
+        {activeColorSlot === 'fill' && safeFillColor !== 'transparent' && (
           <button
             onClick={() => onChangeFillColor?.('transparent')}
             title="Set Fill to Transparent (No Fill)"
@@ -741,8 +744,7 @@ export default function Toolbar({
         {/* Paint Color Palette (1-click color selection!) */}
         <div className="flex items-center gap-1 px-1">
           {COLORS.map((c) => {
-            const isSelected =
-              activeColorSlot === 'stroke' ? currentColor === c : currentFillColor === c
+            const isSelected = activeColor === c
             return (
               <button
                 key={c}
@@ -789,26 +791,17 @@ export default function Toolbar({
                   style={{
                     backgroundColor:
                       activeColorSlot === 'stroke'
-                        ? currentColor
-                        : currentFillColor === 'transparent'
+                        ? safeCurrentColor
+                        : safeFillColor === 'transparent'
                         ? '#ffffff'
-                        : currentFillColor,
+                        : safeFillColor,
                   }}
                 />
               </div>
               <span className="text-[11px] pointer-events-none">Wheel</span>
               <input
                 type="color"
-                value={
-                  (activeColorSlot === 'stroke' ? currentColor : currentFillColor).startsWith(
-                    '#'
-                  ) &&
-                  (activeColorSlot === 'stroke' ? currentColor : currentFillColor).length === 7
-                    ? activeColorSlot === 'stroke'
-                      ? currentColor
-                      : currentFillColor
-                    : '#1971c2'
-                }
+                value={activeColorHex}
                 onChange={(e) => {
                   if (activeColorSlot === 'stroke') {
                     onChangeColor(e.target.value)
@@ -1134,13 +1127,13 @@ export default function Toolbar({
                 style={{
                   backgroundColor:
                     activeColorSlot === 'stroke'
-                      ? currentColor
-                      : currentFillColor === 'transparent'
+                      ? safeCurrentColor
+                      : safeFillColor === 'transparent'
                       ? '#ffffff'
-                      : currentFillColor,
+                      : safeFillColor,
                 }}
               >
-                {activeColorSlot === 'fill' && currentFillColor === 'transparent' && (
+                {activeColorSlot === 'fill' && safeFillColor === 'transparent' && (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-full h-0.5 bg-red-500 rotate-45 transform" />
                   </div>
@@ -1176,8 +1169,8 @@ export default function Toolbar({
               type="button"
               onClick={() => {
                 setActiveColorSlot('fill')
-                if (currentFillColor === 'transparent') {
-                  onChangeFillColor?.(currentColor)
+                if (safeFillColor === 'transparent') {
+                  onChangeFillColor?.(safeCurrentColor)
                 }
               }}
               className={`py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
@@ -1209,10 +1202,10 @@ export default function Toolbar({
                   style={{
                     backgroundColor:
                       activeColorSlot === 'stroke'
-                        ? currentColor
-                        : currentFillColor === 'transparent'
+                        ? safeCurrentColor
+                        : safeFillColor === 'transparent'
                         ? '#ffffff'
-                        : currentFillColor,
+                        : safeFillColor,
                   }}
                 />
                 <span>Open Color Wheel 🎨</span>
@@ -1222,16 +1215,7 @@ export default function Toolbar({
               </span>
               <input
                 type="color"
-                value={
-                  (activeColorSlot === 'stroke' ? currentColor : currentFillColor).startsWith(
-                    '#'
-                  ) &&
-                  (activeColorSlot === 'stroke' ? currentColor : currentFillColor).length === 7
-                    ? activeColorSlot === 'stroke'
-                      ? currentColor
-                      : currentFillColor
-                    : '#1971c2'
-                }
+                value={activeColorHex}
                 onChange={(e) => {
                   if (activeColorSlot === 'stroke') {
                     onChangeColor(e.target.value)
@@ -1251,17 +1235,17 @@ export default function Toolbar({
               style={{
                 backgroundColor:
                   activeColorSlot === 'stroke'
-                    ? currentColor
-                    : currentFillColor === 'transparent'
+                    ? safeCurrentColor
+                    : safeFillColor === 'transparent'
                     ? '#ffffff'
-                    : currentFillColor,
+                    : safeFillColor,
               }}
             />
             <div className="flex-1 flex items-center bg-white px-2 py-0.5 rounded-lg border border-[#dee2e6] shadow-2xs">
               <span className="text-[#868e96] font-mono text-xs select-none">#</span>
               <input
                 type="text"
-                value={(activeColorSlot === 'stroke' ? currentColor : currentFillColor).replace('#', '')}
+                value={activeColorDisplayHex}
                 onChange={(e) => {
                   const hex = '#' + e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6)
                   if (activeColorSlot === 'stroke') {
@@ -1285,8 +1269,7 @@ export default function Toolbar({
             </div>
             <div className="grid grid-cols-6 gap-1.5">
               {COLORS.map((c) => {
-                const isSelected =
-                  activeColorSlot === 'stroke' ? currentColor === c : currentFillColor === c
+                const isSelected = activeColor === c
                 return (
                   <button
                     key={c}
