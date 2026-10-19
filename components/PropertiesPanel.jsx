@@ -52,33 +52,44 @@ export default function PropertiesPanel({
   onDeleteSelected,
   onAddVote,
 }) {
-  const isSticky = activeTool === 'sticky' || selectedElement?.type === 'sticky'
-  const isText = activeTool === 'text' || selectedElement?.type === 'text'
-  const isImage = selectedElement?.type === 'image'
-
-  const hasStroke =
-    CLOSED_SHAPES.includes(activeTool) ||
-    CLOSED_SHAPES.includes(selectedElement?.type) ||
-    LINE_SHAPES.includes(activeTool) ||
-    LINE_SHAPES.includes(selectedElement?.type) ||
-    activeTool === 'pen' ||
-    selectedElement?.type === 'pen'
-
-  const hasFill =
-    CLOSED_SHAPES.includes(activeTool) ||
-    CLOSED_SHAPES.includes(selectedElement?.type) ||
-    activeTool === 'bucket'
-
-  // Don't show properties if tool is pan or eraser with no selection
-  if (['pan', 'eraser'].includes(activeTool) && !selectedElement) {
+  // Only show inspector panel when an element is explicitly selected!
+  // When no element is selected, the canvas is clear and user uses the top toolbar controls.
+  if (!selectedElement) {
     return null
   }
 
+  const isSticky = selectedElement.type === 'sticky'
+  const isText = selectedElement.type === 'text'
+  const isImage = selectedElement.type === 'image'
+  const isStamp = selectedElement.type === 'stamp'
+
+  const hasStroke =
+    (CLOSED_SHAPES.includes(selectedElement.type) ||
+     LINE_SHAPES.includes(selectedElement.type) ||
+     selectedElement.type === 'pen' ||
+     selectedElement.type === 'brush') &&
+    !isStamp
+
+  const hasFill =
+    CLOSED_SHAPES.includes(selectedElement.type) &&
+    !isStamp
+
   return (
-    <div className="fixed top-20 left-6 z-30">
-      <div className="w-56 p-3 rounded-xl bg-white/95 backdrop-blur-md border border-[#e9ecef] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] space-y-3 select-none text-xs">
+    <div className="fixed top-32 left-6 z-20">
+      <div className="w-56 p-3 rounded-xl bg-white/95 backdrop-blur-md border border-[#e9ecef] shadow-[0_6px_24px_-4px_rgba(0,0,0,0.10)] space-y-3 select-none text-xs">
+        {/* Stamp Sticker Header */}
+        {isStamp && (
+          <div className="flex items-center gap-2 p-2 bg-[#f8f9fa] rounded-lg border border-[#e9ecef]">
+            <span className="text-2xl">{selectedElement.emoji || '👍'}</span>
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-[#212529]">Stamp Sticker</div>
+              <div className="text-[10px] text-[#868e96]">FigJam Voting Badge</div>
+            </div>
+          </div>
+        )}
+
         {/* Stroke / Text Color */}
-        {!isSticky && !isImage && (
+        {(hasStroke || isText) && !isSticky && !isImage && !isStamp && (
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[11px] font-semibold text-[#868e96] uppercase tracking-wider">
@@ -339,7 +350,8 @@ export default function PropertiesPanel({
         {selectedElement &&
           (selectedElement.type === 'sticky' ||
             BOX_SHAPES.includes(selectedElement.type) ||
-            selectedElement.type === 'circle') && (
+            selectedElement.type === 'circle' ||
+            selectedElement.type === 'stamp') && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[11px] font-semibold text-[#868e96] uppercase tracking-wider">

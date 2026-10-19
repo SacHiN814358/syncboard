@@ -579,7 +579,7 @@ export default function Canvas({
       const hit = findElementAtPoint(world.x, world.y, currentList, 14 / viewport.zoom)
       const emojiToUse = currentStampEmoji || '👍'
 
-      if (hit && (BOX_SHAPES.includes(hit.type) || hit.type === 'sticky' || hit.type === 'circle' || hit.type === 'text')) {
+      if (hit && hit.type !== 'stamp' && (BOX_SHAPES.includes(hit.type) || hit.type === 'sticky' || hit.type === 'circle' || hit.type === 'text')) {
         // Stamp on element (Sticky note or Shape): increments vote!
         const existingVotes = { ...(hit.votes || {}) }
         existingVotes[emojiToUse] = (existingVotes[emojiToUse] || 0) + 1
@@ -593,17 +593,17 @@ export default function Canvas({
         const newStamp = {
           id: generateId(),
           type: 'stamp',
-          x: world.x - 19,
-          y: world.y - 19,
-          width: 38,
-          height: 38,
+          x: world.x - 20,
+          y: world.y - 20,
+          width: 40,
+          height: 40,
           emoji: emojiToUse,
           rotation: (Math.random() - 0.5) * 0.35,
         }
         const updated = [...currentList, newStamp]
         elementsRef.current = updated
         onElementsChange(updated)
-        onSelectElement(newStamp)
+        // Keep stamp tool active and unselected so user can stamp rapidly
         toast.success(`Stamped ${emojiToUse}! ✨`, { id: 'stamp-toast', duration: 1200 })
         needsRepaintRef.current = true
       }

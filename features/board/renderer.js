@@ -329,7 +329,8 @@ export function drawStamp(ctx, el) {
   ctx.stroke()
 
   // Emoji Graphic
-  ctx.font = `${Math.round(w * 0.62)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
+  ctx.fillStyle = '#000000'
+  ctx.font = `${Math.round(w * 0.65)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(el.emoji || '👍', 0, 1.5)

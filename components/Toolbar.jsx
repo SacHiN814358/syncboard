@@ -270,10 +270,45 @@ export default function Toolbar({
   const [stampPickerOpen, setStampPickerOpen] = useState(false)
   const [selectedShapeId, setSelectedShapeId] = useState('rectangle')
   const shapesDropdownRef = useRef(null)
+  const shapesButtonRef = useRef(null)
   const stampDropdownRef = useRef(null)
+  const stampButtonRef = useRef(null)
   const fileInputRef = useRef(null)
   const colorPickerRef = useRef(null)
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
+
+  const [stampPickerPos, setStampPickerPos] = useState(null)
+  const [shapesPickerPos, setShapesPickerPos] = useState(null)
+
+  const toggleStampPicker = () => {
+    if (!stampPickerOpen && stampButtonRef.current) {
+      const rect = stampButtonRef.current.getBoundingClientRect()
+      setStampPickerPos({
+        top: rect.bottom + 8,
+        left: Math.max(12, Math.min(window.innerWidth - 272, rect.left + rect.width / 2 - 130)),
+      })
+      setStampPickerOpen(true)
+      setShapesOpen(false)
+      setColorPickerOpen(false)
+    } else {
+      setStampPickerOpen(false)
+    }
+  }
+
+  const toggleShapesPicker = () => {
+    if (!shapesOpen && shapesButtonRef.current) {
+      const rect = shapesButtonRef.current.getBoundingClientRect()
+      setShapesPickerPos({
+        top: rect.bottom + 8,
+        left: Math.max(12, Math.min(window.innerWidth - 372, rect.left + rect.width / 2 - 180)),
+      })
+      setShapesOpen(true)
+      setStampPickerOpen(false)
+      setColorPickerOpen(false)
+    } else {
+      setShapesOpen(false)
+    }
+  }
 
   // Track if activeTool is one of the shapes
   const isShapeActive = SHAPES_LIST.some((s) => s.id === activeTool)
@@ -305,7 +340,11 @@ export default function Toolbar({
     if (!shapesOpen) return
 
     const handleClickOutside = (e) => {
-      if (shapesDropdownRef.current && !shapesDropdownRef.current.contains(e.target)) {
+      if (
+        shapesDropdownRef.current &&
+        !shapesDropdownRef.current.contains(e.target) &&
+        !shapesButtonRef.current?.contains(e.target)
+      ) {
         setShapesOpen(false)
       }
     }
@@ -329,7 +368,11 @@ export default function Toolbar({
     if (!stampPickerOpen) return
 
     const handleClickOutside = (e) => {
-      if (stampDropdownRef.current && !stampDropdownRef.current.contains(e.target)) {
+      if (
+        stampDropdownRef.current &&
+        !stampDropdownRef.current.contains(e.target) &&
+        !stampButtonRef.current?.contains(e.target)
+      ) {
         setStampPickerOpen(false)
       }
     }
@@ -429,19 +472,21 @@ export default function Toolbar({
 
             if (tool.id === 'stamp') {
               return (
-                <div key={tool.id} className="relative" ref={stampDropdownRef}>
+                <div key={tool.id} className="relative">
                   <button
+                    ref={stampButtonRef}
                     onClick={() => {
                       onSelectTool('stamp')
-                      setStampPickerOpen((prev) => !prev)
+                      toggleStampPicker()
                     }}
                     data-active={isActive}
                     title="Stamp & Vote (D) - Click to pick sticker"
                     aria-label="Stamp Tool"
-                    className="toolbar-btn group relative flex items-center justify-center gap-0.5 px-1.5"
+                    className="toolbar-btn group relative flex items-center justify-center gap-1 px-1.5"
                   >
                     <Icon className="w-4 h-4" />
                     <span className="text-[13px] leading-none select-none">{currentStampEmoji}</span>
+                    <ChevronDown className="w-2.5 h-2.5 text-[#868e96]" />
 
                     {/* Tooltip */}
                     {!stampPickerOpen && (
@@ -451,44 +496,6 @@ export default function Toolbar({
                       </span>
                     )}
                   </button>
-
-                  {/* Stamp Sticker Picker Popover */}
-                  {stampPickerOpen && (
-                    <div className="absolute top-full mt-2.5 left-1/2 -translate-x-1/2 bg-white/98 backdrop-blur-md rounded-2xl border border-[#e9ecef] shadow-[0_12px_36px_-4px_rgba(0,0,0,0.18)] p-3 w-[260px] z-50 select-none animate-in fade-in zoom-in-95 duration-100">
-                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#f1f3f5]">
-                        <span className="text-xs font-bold text-[#212529]">FigJam Stamps & Voting</span>
-                        <span className="text-[10px] text-[#1971c2] bg-[#e7f5ff] px-2 py-0.5 rounded-full font-semibold">
-                          Click to Vote
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {STAMP_EMOJIS.map((s) => {
-                          const isSelected = currentStampEmoji === s.emoji
-                          return (
-                            <button
-                              key={s.emoji}
-                              onClick={() => {
-                                onChangeStampEmoji?.(s.emoji)
-                                onSelectTool('stamp')
-                                setStampPickerOpen(false)
-                              }}
-                              className={`p-1.5 rounded-xl flex flex-col items-center gap-1 hover:bg-[#f1f3f5] transition-all cursor-pointer ${
-                                isSelected
-                                  ? 'bg-[#e7f5ff] border border-[#74c0fc] shadow-xs'
-                                  : 'border border-transparent'
-                              }`}
-                              title={s.label}
-                            >
-                              <span className="text-2xl hover:scale-125 transition-transform">{s.emoji}</span>
-                              <span className="text-[10px] font-medium text-[#495057] text-center leading-tight truncate w-full">
-                                {s.label}
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )
             }
@@ -523,25 +530,26 @@ export default function Toolbar({
           })}
 
           {/* Shapes Dropdown Button & Menu */}
-          <div className="relative" ref={shapesDropdownRef}>
+          <div className="relative">
             <button
+              ref={shapesButtonRef}
               onClick={() => {
                 if (!isShapeActive) {
                   onSelectTool(selectedShapeId)
                 }
-                setShapesOpen((prev) => !prev)
+                toggleShapesPicker()
               }}
               data-active={isShapeActive}
               title={`Shapes (${currentShape.label}) - Click to pick shapes`}
               aria-label="Shapes Menu"
               className={`toolbar-btn group relative flex items-center gap-1 px-1.5 ${
-                isShapeActive ? 'bg-[#e7f5ff] text-[#1971c2]' : ''
+                isShapeActive ? "bg-[#e7f5ff] text-[#1971c2]" : ""
               }`}
             >
               <ActiveShapeIcon className="w-4 h-4" />
               <ChevronDown
                 className={`w-3 h-3 text-[#868e96] transition-transform duration-150 ${
-                  shapesOpen ? 'rotate-180' : ''
+                  shapesOpen ? "rotate-180" : ""
                 }`}
               />
 
@@ -552,218 +560,6 @@ export default function Toolbar({
                 </span>
               )}
             </button>
-
-            {/* Shapes Dropdown Popover */}
-            {shapesOpen && (
-              <div className="absolute top-full mt-2.5 left-1/2 -translate-x-1/2 bg-white/98 backdrop-blur-md rounded-2xl border border-[#e9ecef] shadow-[0_16px_40px_-4px_rgba(0,0,0,0.18)] p-3.5 w-[360px] max-h-[75vh] overflow-y-auto z-50 select-none animate-in fade-in zoom-in-95 duration-100">
-                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-[#f1f3f5]">
-                  <span className="text-xs font-semibold text-[#343a40]">Shapes & Symbols</span>
-                  <span className="text-[10px] text-[#1971c2] bg-[#e7f5ff] px-2 py-0.5 rounded-full border border-[#d0ebff] font-semibold">
-                    {SHAPES_LIST.length} Shapes
-                  </span>
-                </div>
-
-                {/* 1. Flowchart & Diagramming (Miro Style) */}
-                <div className="mb-3.5 pb-2.5 border-b border-[#f1f3f5]">
-                  <div className="flex items-center justify-between mb-1.5 px-0.5">
-                    <span className="text-[10px] font-bold text-[#1971c2] uppercase tracking-wider">
-                      Flowchart & Diagramming
-                    </span>
-                    <span className="text-[9px] bg-[#e7f5ff] text-[#1971c2] px-1.5 py-0.5 rounded font-bold border border-[#d0ebff]">
-                      Miro Connectors
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {SHAPES_LIST.filter((s) => s.category === 'Flowchart & Diagramming').map((shape) => {
-                      const Icon = shape.icon
-                      const isSelected = activeTool === shape.id
-                      return (
-                        <button
-                          key={shape.id}
-                          onClick={() => {
-                            onSelectTool(shape.id)
-                            setSelectedShapeId(shape.id)
-                            setShapesOpen(false)
-                          }}
-                          title={shape.label}
-                          aria-label={shape.label}
-                          className={`h-8 px-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
-                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
-                          }`}
-                        >
-                          <Icon className="w-3.5 h-3.5 shrink-0" />
-                          <span className="text-[11px] font-medium truncate">{shape.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* 2. Basic & Geometric Shapes */}
-                <div className="mb-3">
-                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
-                    Basic & Geometric
-                  </div>
-                  <div className="grid grid-cols-6 gap-1">
-                    {SHAPES_LIST.filter((s) => s.category === 'Basic & Geometric Shapes').map((shape) => {
-                      const Icon = shape.icon
-                      const isSelected = activeTool === shape.id
-                      return (
-                        <button
-                          key={shape.id}
-                          onClick={() => {
-                            onSelectTool(shape.id)
-                            setSelectedShapeId(shape.id)
-                            setShapesOpen(false)
-                          }}
-                          title={shape.label}
-                          aria-label={shape.label}
-                          className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
-                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* 2. Lines & Curves */}
-                <div className="mb-3">
-                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
-                    Lines & Curves
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {SHAPES_LIST.filter((s) => s.category === 'Lines & Curves').map((shape) => {
-                      const Icon = shape.icon
-                      const isSelected = activeTool === shape.id
-                      return (
-                        <button
-                          key={shape.id}
-                          onClick={() => {
-                            onSelectTool(shape.id)
-                            setSelectedShapeId(shape.id)
-                            setShapesOpen(false)
-                          }}
-                          title={shape.label}
-                          aria-label={shape.label}
-                          className={`h-8 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
-                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span className="text-[11px] font-medium truncate">{shape.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* 3. Arrows */}
-                <div className="mb-3">
-                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
-                    Arrows
-                  </div>
-                  <div className="grid grid-cols-6 gap-1">
-                    {SHAPES_LIST.filter((s) => s.category === 'Arrows').map((shape) => {
-                      const Icon = shape.icon
-                      const isSelected = activeTool === shape.id
-                      return (
-                        <button
-                          key={shape.id}
-                          onClick={() => {
-                            onSelectTool(shape.id)
-                            setSelectedShapeId(shape.id)
-                            setShapesOpen(false)
-                          }}
-                          title={shape.label}
-                          aria-label={shape.label}
-                          className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
-                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* 4. Stars & Symbols */}
-                <div className="mb-3">
-                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
-                    Stars & Symbols
-                  </div>
-                  <div className="grid grid-cols-5 gap-1">
-                    {SHAPES_LIST.filter((s) => s.category === 'Stars & Symbols').map((shape) => {
-                      const Icon = shape.icon
-                      const isSelected = activeTool === shape.id
-                      return (
-                        <button
-                          key={shape.id}
-                          onClick={() => {
-                            onSelectTool(shape.id)
-                            setSelectedShapeId(shape.id)
-                            setShapesOpen(false)
-                          }}
-                          title={shape.label}
-                          aria-label={shape.label}
-                          className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
-                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* 5. Callouts (Speech & Thought Bubbles) */}
-                <div>
-                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
-                    Callouts (Speech & Thought)
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {SHAPES_LIST.filter((s) => s.category === 'Callouts').map((shape) => {
-                      const Icon = shape.icon
-                      const isSelected = activeTool === shape.id
-                      return (
-                        <button
-                          key={shape.id}
-                          onClick={() => {
-                            onSelectTool(shape.id)
-                            setSelectedShapeId(shape.id)
-                            setShapesOpen(false)
-                          }}
-                          title={shape.label}
-                          aria-label={shape.label}
-                          className={`h-8 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
-                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span className="text-[11px] font-medium truncate">{shape.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Smart Elbow Connector Tool (Miro style) */}
@@ -1067,6 +863,262 @@ export default function Toolbar({
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Stamp Sticker Picker Popover (Fixed, zero clipping) */}
+      {stampPickerOpen && stampPickerPos && (
+        <div
+          ref={stampDropdownRef}
+          style={{ top: `${stampPickerPos.top}px`, left: `${stampPickerPos.left}px` }}
+          className="fixed z-50 bg-white/98 backdrop-blur-md rounded-2xl border border-[#e9ecef] shadow-[0_12px_36px_-4px_rgba(0,0,0,0.18)] p-3 w-[260px] select-none animate-in fade-in zoom-in-95 duration-100"
+        >
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#f1f3f5]">
+            <span className="text-xs font-bold text-[#212529]">FigJam Stamps & Voting</span>
+            <span className="text-[10px] text-[#1971c2] bg-[#e7f5ff] px-2 py-0.5 rounded-full font-semibold">
+              Click to Pick
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {STAMP_EMOJIS.map((s) => {
+              const isSelected = currentStampEmoji === s.emoji
+              return (
+                <button
+                  key={s.emoji}
+                  onClick={() => {
+                    onChangeStampEmoji?.(s.emoji)
+                    onSelectTool("stamp")
+                    setStampPickerOpen(false)
+                  }}
+                  className={`p-1.5 rounded-xl flex flex-col items-center gap-1 hover:bg-[#f1f3f5] transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-[#e7f5ff] border border-[#74c0fc] shadow-xs"
+                      : "border border-transparent"
+                  }`}
+                  title={s.label}
+                >
+                  <span className="text-2xl hover:scale-125 transition-transform">{s.emoji}</span>
+                  <span className="text-[10px] font-medium text-[#495057] text-center leading-tight truncate w-full">
+                    {s.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Shapes Dropdown Popover */}
+            {shapesOpen && shapesPickerPos && (
+              <div ref={shapesDropdownRef}
+          style={{ top: `${shapesPickerPos.top}px`, left: `${shapesPickerPos.left}px` }}
+          className="fixed z-50 bg-white/98 backdrop-blur-md rounded-2xl border border-[#e9ecef] shadow-[0_16px_40px_-4px_rgba(0,0,0,0.18)] p-3.5 w-[360px] max-h-[75vh] overflow-y-auto z-50 select-none animate-in fade-in zoom-in-95 duration-100">
+                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-[#f1f3f5]">
+                  <span className="text-xs font-semibold text-[#343a40]">Shapes & Symbols</span>
+                  <span className="text-[10px] text-[#1971c2] bg-[#e7f5ff] px-2 py-0.5 rounded-full border border-[#d0ebff] font-semibold">
+                    {SHAPES_LIST.length} Shapes
+                  </span>
+                </div>
+
+                {/* 1. Flowchart & Diagramming (Miro Style) */}
+                <div className="mb-3.5 pb-2.5 border-b border-[#f1f3f5]">
+                  <div className="flex items-center justify-between mb-1.5 px-0.5">
+                    <span className="text-[10px] font-bold text-[#1971c2] uppercase tracking-wider">
+                      Flowchart & Diagramming
+                    </span>
+                    <span className="text-[9px] bg-[#e7f5ff] text-[#1971c2] px-1.5 py-0.5 rounded font-bold border border-[#d0ebff]">
+                      Miro Connectors
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {SHAPES_LIST.filter((s) => s.category === 'Flowchart & Diagramming').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          aria-label={shape.label}
+                          className={`h-8 px-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5 shrink-0" />
+                          <span className="text-[11px] font-medium truncate">{shape.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Basic & Geometric Shapes */}
+                <div className="mb-3">
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Basic & Geometric
+                  </div>
+                  <div className="grid grid-cols-6 gap-1">
+                    {SHAPES_LIST.filter((s) => s.category === 'Basic & Geometric Shapes').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          aria-label={shape.label}
+                          className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Lines & Curves */}
+                <div className="mb-3">
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Lines & Curves
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {SHAPES_LIST.filter((s) => s.category === 'Lines & Curves').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          aria-label={shape.label}
+                          className={`h-8 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span className="text-[11px] font-medium truncate">{shape.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Arrows */}
+                <div className="mb-3">
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Arrows
+                  </div>
+                  <div className="grid grid-cols-6 gap-1">
+                    {SHAPES_LIST.filter((s) => s.category === 'Arrows').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          aria-label={shape.label}
+                          className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 4. Stars & Symbols */}
+                <div className="mb-3">
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Stars & Symbols
+                  </div>
+                  <div className="grid grid-cols-5 gap-1">
+                    {SHAPES_LIST.filter((s) => s.category === 'Stars & Symbols').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          aria-label={shape.label}
+                          className={`h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 5. Callouts (Speech & Thought Bubbles) */}
+                <div>
+                  <div className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider mb-1.5 px-0.5">
+                    Callouts (Speech & Thought)
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {SHAPES_LIST.filter((s) => s.category === 'Callouts').map((shape) => {
+                      const Icon = shape.icon
+                      const isSelected = activeTool === shape.id
+                      return (
+                        <button
+                          key={shape.id}
+                          onClick={() => {
+                            onSelectTool(shape.id)
+                            setSelectedShapeId(shape.id)
+                            setShapesOpen(false)
+                          }}
+                          title={shape.label}
+                          aria-label={shape.label}
+                          className={`h-8 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e7f5ff] text-[#1971c2] border border-[#a5d8ff] shadow-xs'
+                              : 'text-[#495057] hover:bg-[#f1f3f5] hover:text-[#212529] border border-transparent'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span className="text-[11px] font-medium truncate">{shape.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
 
       {/* Color & Wheel Popover (Opens when Fill or Color is clicked) */}
       {colorPickerOpen && (
