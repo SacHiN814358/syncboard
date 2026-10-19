@@ -39,8 +39,9 @@ import {
   Pipette,
   ChevronDown,
   FileText,
+  Stamp,
 } from 'lucide-react'
-import { COLORS, STROKE_WIDTHS } from '@/features/board/elements'
+import { COLORS, STROKE_WIDTHS, STAMP_EMOJIS } from '@/features/board/elements'
 
 function RightTriangleIcon({ className = 'w-4 h-4' }) {
   return (
@@ -164,6 +165,7 @@ const PRIMARY_TOOLS = [
   { id: 'pen', label: 'Pencil', shortcut: 'P', icon: Pencil },
   { id: 'brush', label: 'Brush', shortcut: 'B', icon: Paintbrush },
   { id: 'bucket', label: 'Fill with Color', shortcut: 'G', icon: PaintBucket },
+  { id: 'stamp', label: 'Stamp & Vote', shortcut: 'D', icon: Stamp },
   { id: 'eraser', label: 'Eraser', shortcut: 'X', icon: Eraser },
 ]
 
@@ -256,6 +258,8 @@ export default function Toolbar({
   onToggleReactions,
   onUploadImage,
   onOpenPdfModal,
+  currentStampEmoji = '👍',
+  onChangeStampEmoji,
 }) {
   const [activeColorSlot, setActiveColorSlot] = useState('stroke') // 'stroke' | 'fill'
   const isCustomColor = !COLORS.includes(
@@ -263,8 +267,10 @@ export default function Toolbar({
   )
   const [hasEyeDropper, setHasEyeDropper] = useState(false)
   const [shapesOpen, setShapesOpen] = useState(false)
+  const [stampPickerOpen, setStampPickerOpen] = useState(false)
   const [selectedShapeId, setSelectedShapeId] = useState('rectangle')
   const shapesDropdownRef = useRef(null)
+  const stampDropdownRef = useRef(null)
   const fileInputRef = useRef(null)
   const colorPickerRef = useRef(null)
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
@@ -317,6 +323,30 @@ export default function Toolbar({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [shapesOpen])
+
+  // Close stamp picker on click outside or Escape
+  useEffect(() => {
+    if (!stampPickerOpen) return
+
+    const handleClickOutside = (e) => {
+      if (stampDropdownRef.current && !stampDropdownRef.current.contains(e.target)) {
+        setStampPickerOpen(false)
+      }
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setStampPickerOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [stampPickerOpen])
 
   // Close color picker dropdown on click outside or Escape
   useEffect(() => {
@@ -396,6 +426,72 @@ export default function Toolbar({
           {PRIMARY_TOOLS.map((tool) => {
             const Icon = tool.icon
             const isActive = activeTool === tool.id
+
+            if (tool.id === 'stamp') {
+              return (
+                <div key={tool.id} className="relative" ref={stampDropdownRef}>
+                  <button
+                    onClick={() => {
+                      onSelectTool('stamp')
+                      setStampPickerOpen((prev) => !prev)
+                    }}
+                    data-active={isActive}
+                    title="Stamp & Vote (D) - Click to pick sticker"
+                    aria-label="Stamp Tool"
+                    className="toolbar-btn group relative flex items-center justify-center gap-0.5 px-1.5"
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="text-[13px] leading-none select-none">{currentStampEmoji}</span>
+
+                    {/* Tooltip */}
+                    {!stampPickerOpen && (
+                      <span className="hidden group-hover:flex tooltip-enter absolute -bottom-9 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-[#212529] text-white text-[11px] font-medium whitespace-nowrap shadow-md pointer-events-none z-50 items-center gap-1">
+                        <span>Stamp & Vote: {currentStampEmoji}</span>
+                        <span className="text-[#adb5bd] text-[10px]">(D)</span>
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Stamp Sticker Picker Popover */}
+                  {stampPickerOpen && (
+                    <div className="absolute top-full mt-2.5 left-1/2 -translate-x-1/2 bg-white/98 backdrop-blur-md rounded-2xl border border-[#e9ecef] shadow-[0_12px_36px_-4px_rgba(0,0,0,0.18)] p-3 w-[260px] z-50 select-none animate-in fade-in zoom-in-95 duration-100">
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#f1f3f5]">
+                        <span className="text-xs font-bold text-[#212529]">FigJam Stamps & Voting</span>
+                        <span className="text-[10px] text-[#1971c2] bg-[#e7f5ff] px-2 py-0.5 rounded-full font-semibold">
+                          Click to Vote
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {STAMP_EMOJIS.map((s) => {
+                          const isSelected = currentStampEmoji === s.emoji
+                          return (
+                            <button
+                              key={s.emoji}
+                              onClick={() => {
+                                onChangeStampEmoji?.(s.emoji)
+                                onSelectTool('stamp')
+                                setStampPickerOpen(false)
+                              }}
+                              className={`p-1.5 rounded-xl flex flex-col items-center gap-1 hover:bg-[#f1f3f5] transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#e7f5ff] border border-[#74c0fc] shadow-xs'
+                                  : 'border border-transparent'
+                              }`}
+                              title={s.label}
+                            >
+                              <span className="text-2xl hover:scale-125 transition-transform">{s.emoji}</span>
+                              <span className="text-[10px] font-medium text-[#495057] text-center leading-tight truncate w-full">
+                                {s.label}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            }
 
             return (
               <button

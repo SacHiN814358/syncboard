@@ -76,8 +76,10 @@ export default function Canvas({
   onDrawPreview,
   remotePreviews,
   isReadOnly = false,
+  currentStampEmoji = '👍',
 }) {
   const canvasRef = useRef(null)
+  const [stampGhostPos, setStampGhostPos] = useState(null)
 
   // Interaction State (Mutable to prevent React re-render lag during 60 FPS drawing)
   const isInteractingRef = useRef(false)
@@ -103,6 +105,28 @@ export default function Canvas({
     gridSnapRef.current = gridSnap
   }, [gridSnap])
   const snapToGrid = (val, size = 20) => Math.round(val / size) * size
+
+  // FigJam-style: Vote directly on elements
+  const handleVoteOnElement = useCallback(
+    (elementId, emoji) => {
+      const currentList = elementsRef.current || elements || []
+      const target = currentList.find((el) => el.id === elementId)
+      if (!target) return
+      const existingVotes = { ...(target.votes || {}) }
+      existingVotes[emoji] = (existingVotes[emoji] || 0) + 1
+      const updated = currentList.map((el) =>
+        el.id === elementId ? { ...el, votes: existingVotes } : el
+      )
+      elementsRef.current = updated
+      onElementsChange(updated)
+      if (selectedElement && selectedElement.id === elementId) {
+        onSelectElement({ ...selectedElement, votes: existingVotes })
+      }
+      toast.success(`Voted ${emoji}! 🗳️`, { id: 'vote-toast', duration: 1200 })
+      needsRepaintRef.current = true
+    },
+    [elements, onElementsChange, selectedElement, onSelectElement]
+  )
 
   // Needs repaint flag for requestAnimationFrame
   const needsRepaintRef = useRef(true)
@@ -549,6 +573,45 @@ export default function Canvas({
       return
     }
 
+    // FigJam-style Stamp Tool: Stamp on element or spawn stamp sticker on canvas
+    if (activeTool === 'stamp') {
+      const currentList = elementsRef.current || elements || []
+      const hit = findElementAtPoint(world.x, world.y, currentList, 14 / viewport.zoom)
+      const emojiToUse = currentStampEmoji || '👍'
+
+      if (hit && (BOX_SHAPES.includes(hit.type) || hit.type === 'sticky' || hit.type === 'circle' || hit.type === 'text')) {
+        // Stamp on element (Sticky note or Shape): increments vote!
+        const existingVotes = { ...(hit.votes || {}) }
+        existingVotes[emojiToUse] = (existingVotes[emojiToUse] || 0) + 1
+        const updated = currentList.map((el) => (el.id === hit.id ? { ...el, votes: existingVotes } : el))
+        elementsRef.current = updated
+        onElementsChange(updated)
+        toast.success(`Voted ${emojiToUse} on ${hit.type === 'sticky' ? 'note' : 'shape'}! 🗳️`, { id: 'vote-toast', duration: 1200 })
+        needsRepaintRef.current = true
+      } else {
+        // Place standalone Stamp sticker on canvas
+        const newStamp = {
+          id: generateId(),
+          type: 'stamp',
+          x: world.x - 19,
+          y: world.y - 19,
+          width: 38,
+          height: 38,
+          emoji: emojiToUse,
+          rotation: (Math.random() - 0.5) * 0.35,
+        }
+        const updated = [...currentList, newStamp]
+        elementsRef.current = updated
+        onElementsChange(updated)
+        onSelectElement(newStamp)
+        toast.success(`Stamped ${emojiToUse}! ✨`, { id: 'stamp-toast', duration: 1200 })
+        needsRepaintRef.current = true
+      }
+
+      isInteractingRef.current = false
+      return
+    }
+
     // Paint Bucket Tool: Fill clicked shape or freehand closed region
     if (activeTool === 'bucket') {
       const currentListForBucket = elementsRef.current || elements || []
@@ -767,7 +830,15 @@ export default function Canvas({
             ? 'text'
             : activeTool === 'eraser'
             ? 'cell'
+            : activeTool === 'stamp'
+            ? 'copy'
             : 'crosshair'
+      }
+
+      if (activeTool === 'stamp') {
+        setStampGhostPos({ x: e.clientX, y: e.clientY })
+      } else if (stampGhostPos) {
+        setStampGhostPos(null)
       }
 
       // Magnetic connection indicators on hover with line/arrow tool
@@ -1452,7 +1523,10 @@ export default function Canvas({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
+        onPointerLeave={(e) => {
+          handlePointerUp(e)
+          setStampGhostPos(null)
+        }}
         onDoubleClick={handleDoubleClick}
         className="w-full h-full block touch-none"
         style={{
@@ -1543,6 +1617,67 @@ export default function Canvas({
             </div>
           )
         })()}
+
+      {/* FigJam-Style Interactive Dot Voting Bar on Selected Sticky Note or Shape */}
+      {!isReadOnly &&
+        selectedElement &&
+        activeTool === 'select' &&
+        interactionModeRef.current === 'none' &&
+        !editingText &&
+        (selectedElement.type === 'sticky' ||
+          BOX_SHAPES.includes(selectedElement.type) ||
+          selectedElement.type === 'circle') &&
+        (() => {
+          const b = getElementBounds(selectedElement)
+          if (!b) return null
+          const p1 = worldToScreen(b.x, b.y, viewport)
+          const p2 = worldToScreen(b.x + b.width, b.y + b.height, viewport)
+          const midX = (p1.x + p2.x) / 2
+          const bottomY = p2.y + 12
+
+          return (
+            <div
+              className="absolute z-30 -translate-x-1/2 flex items-center gap-1 p-1 bg-white/95 backdrop-blur-md rounded-full border border-[#dee2e6] shadow-[0_6px_20px_rgba(0,0,0,0.14)] animate-in fade-in zoom-in-95 duration-100 select-none"
+              style={{ left: `${midX}px`, top: `${bottomY}px` }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <span className="text-[10px] font-bold text-[#868e96] uppercase tracking-wider pl-1.5 pr-0.5">
+                Vote:
+              </span>
+              {['👍', '❤️', '🔥', '🚀', '💡', '💯'].map((emoji) => {
+                const count = selectedElement.votes?.[emoji] || 0
+                return (
+                  <button
+                    key={emoji}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleVoteOnElement(selectedElement.id, emoji)
+                    }}
+                    title={`Vote ${emoji}`}
+                    className={`h-6.5 px-2 rounded-full text-xs flex items-center gap-1 transition-all cursor-pointer ${
+                      count > 0
+                        ? 'bg-[#e7f5ff] text-[#1971c2] font-bold border border-[#74c0fc] shadow-2xs'
+                        : 'hover:bg-[#f1f3f5] text-[#495057] border border-transparent'
+                    }`}
+                  >
+                    <span className="text-sm">{emoji}</span>
+                    {count > 0 && <span className="text-[10px] font-bold">{count}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })()}
+
+      {/* Ghost Stamp cursor preview when Stamp tool is active */}
+      {!isReadOnly && activeTool === 'stamp' && stampGhostPos && (
+        <div
+          className="fixed pointer-events-none z-50 text-3xl -translate-x-1/2 -translate-y-1/2 select-none filter drop-shadow-md transition-transform scale-110"
+          style={{ left: `${stampGhostPos.x}px`, top: `${stampGhostPos.y}px` }}
+        >
+          {currentStampEmoji || '👍'}
+        </div>
+      )}
 
       {/* Inline Textarea Overlay for Text, Shapes, Sticky Notes & Connectors */}
       {editingText && (

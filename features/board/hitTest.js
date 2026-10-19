@@ -14,8 +14,8 @@ import { BOX_SHAPES, LINE_SHAPES } from './elements'
  * @returns {{x: number, y: number, width: number, height: number} | null}
  */
 export function getElementBounds(el) {
-  if (BOX_SHAPES.includes(el.type) || el.type === 'sticky' || el.type === 'image') {
-    return { x: el.x, y: el.y, width: el.width, height: el.height }
+  if (BOX_SHAPES.includes(el.type) || el.type === 'sticky' || el.type === 'image' || el.type === 'stamp') {
+    return { x: el.x, y: el.y, width: el.width || 38, height: el.height || 38 }
   }
 
   if (el.type === 'elbow-arrow' || el.type === 'elbow-line') {
@@ -103,7 +103,8 @@ export function hitTestElement(wx, wy, el, tolerance = 8) {
     el.type === 'rectangle' ||
     el.type === 'rounded-rectangle' ||
     el.type === 'sticky' ||
-    el.type === 'image'
+    el.type === 'image' ||
+    el.type === 'stamp'
   ) {
     return hitTestRect(wx, wy, el, tolerance)
   }

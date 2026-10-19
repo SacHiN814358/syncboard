@@ -294,6 +294,106 @@ export function drawSticky(ctx, el) {
 }
 
 /**
+ * Draw a standalone Stamp / Sticker element (FigJam style).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {import('./elements').StampElement} el
+ */
+export function drawStamp(ctx, el) {
+  const w = el.width || 38
+  const h = el.height || 38
+  const cx = el.x + w / 2
+  const cy = el.y + h / 2
+  const rot = el.rotation || 0
+
+  ctx.save()
+  ctx.translate(cx, cy)
+  if (rot) ctx.rotate(rot)
+
+  // Soft translucent sticker paper backing with drop shadow
+  ctx.save()
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.12)'
+  ctx.shadowBlur = 8
+  ctx.shadowOffsetX = 0
+  ctx.shadowOffsetY = 2
+  ctx.fillStyle = '#ffffff'
+  ctx.beginPath()
+  ctx.arc(0, 0, w / 2, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+
+  // Delicate border
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.arc(0, 0, w / 2, 0, Math.PI * 2)
+  ctx.stroke()
+
+  // Emoji Graphic
+  ctx.font = `${Math.round(w * 0.62)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(el.emoji || '👍', 0, 1.5)
+
+  ctx.restore()
+}
+
+/**
+ * Draw FigJam-style interactive dot voting badges at bottom of elements (sticky notes, shapes).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {import('./elements').CanvasElement} el
+ */
+export function drawElementVotes(ctx, el) {
+  if (!el.votes) return
+  const entries = Object.entries(el.votes).filter(([_, count]) => count > 0)
+  if (entries.length === 0) return
+
+  const bounds = getElementBounds(el)
+  if (!bounds) return
+
+  ctx.save()
+  const pillHeight = 22
+  const paddingX = 8
+  const badgeGap = 5
+  let currentX = bounds.x + 8
+  const badgeY = bounds.y + bounds.height - pillHeight - 6
+
+  for (const [emoji, count] of entries) {
+    const text = `${emoji} ${count}`
+    ctx.font = 'bold 11px Inter, system-ui, -apple-system, sans-serif'
+    const textMetrics = ctx.measureText(text)
+    const pillWidth = Math.max(textMetrics.width + paddingX * 2, 36)
+
+    // Pill background with soft shadow
+    ctx.save()
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.08)'
+    ctx.shadowBlur = 5
+    ctx.shadowOffsetY = 1.5
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.96)'
+    ctx.beginPath()
+    ctx.roundRect(currentX, badgeY, pillWidth, pillHeight, 11)
+    ctx.fill()
+    ctx.restore()
+
+    // Pill border
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.roundRect(currentX, badgeY, pillWidth, pillHeight, 11)
+    ctx.stroke()
+
+    // Text & emoji
+    ctx.fillStyle = '#1e293b'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, currentX + pillWidth / 2, badgeY + pillHeight / 2 + 0.5)
+
+    currentX += pillWidth + badgeGap
+  }
+
+  ctx.restore()
+}
+
+/**
  * Draw an image element on canvas.
  * @param {CanvasRenderingContext2D} ctx
  * @param {import('./elements').ImageElement} el
@@ -1509,6 +1609,9 @@ export function drawElement(ctx, el) {
     case 'sticky':
       drawSticky(ctx, el)
       break
+    case 'stamp':
+      drawStamp(ctx, el)
+      break
     case 'image':
       drawImageElement(ctx, el)
       break
@@ -1517,6 +1620,11 @@ export function drawElement(ctx, el) {
   // Miro / Excalidraw style: Centered text labels inside all closed vector shapes & flowchart nodes
   if (BOX_SHAPES.includes(el.type) || el.type === 'circle') {
     drawShapeText(ctx, el)
+  }
+
+  // FigJam-style: Draw dot voting badges on elements
+  if (el.votes) {
+    drawElementVotes(ctx, el)
   }
 
   ctx.restore()

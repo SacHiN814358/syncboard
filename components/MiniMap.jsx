@@ -242,6 +242,15 @@ export default function MiniMap({
         continue
       }
 
+      // Miniature Stamp / Sticker
+      if (el.type === 'stamp') {
+        ctx.fillStyle = '#f59e0b'
+        ctx.beginPath()
+        ctx.arc(mx + mw / 2, my + mh / 2, Math.max(mw / 2, 2.5), 0, Math.PI * 2)
+        ctx.fill()
+        continue
+      }
+
       // Pencil / Brush strokes
       if ((el.type === 'pen' || el.type === 'brush') && el.points && el.points.length > 1) {
         ctx.beginPath()

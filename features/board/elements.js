@@ -7,8 +7,20 @@
  */
 
 /**
- * @typedef {'select' | 'pan' | 'pen' | 'brush' | 'bucket' | 'rectangle' | 'rounded-rectangle' | 'circle' | 'line' | 'curve' | 'arrow' | 'double-arrow' | 'elbow-arrow' | 'elbow-line' | 'triangle' | 'right-triangle' | 'diamond' | 'terminator' | 'cylinder' | 'document' | 'subroutine' | 'pentagon' | 'hexagon' | 'heptagon' | 'octagon' | 'trapezoid' | 'parallelogram' | 'arrow-right' | 'arrow-left' | 'arrow-up' | 'arrow-down' | 'arrow-four' | 'chevron' | 'star-4' | 'star' | 'star-6' | 'heart' | 'lightning' | 'callout-rect' | 'callout-oval' | 'callout-cloud' | 'cloud' | 'text' | 'sticky' | 'eraser'} ToolType
+ * @typedef {'select' | 'pan' | 'pen' | 'brush' | 'bucket' | 'stamp' | 'rectangle' | 'rounded-rectangle' | 'circle' | 'line' | 'curve' | 'arrow' | 'double-arrow' | 'elbow-arrow' | 'elbow-line' | 'triangle' | 'right-triangle' | 'diamond' | 'terminator' | 'cylinder' | 'document' | 'subroutine' | 'pentagon' | 'hexagon' | 'heptagon' | 'octagon' | 'trapezoid' | 'parallelogram' | 'arrow-right' | 'arrow-left' | 'arrow-up' | 'arrow-down' | 'arrow-four' | 'chevron' | 'star-4' | 'star' | 'star-6' | 'heart' | 'lightning' | 'callout-rect' | 'callout-oval' | 'callout-cloud' | 'cloud' | 'text' | 'sticky' | 'eraser'} ToolType
  */
+
+export const STAMP_EMOJIS = [
+  { emoji: '👍', label: 'Agree (+1)', count: 0 },
+  { emoji: '❤️', label: 'Love it', count: 0 },
+  { emoji: '🔥', label: 'Hot Priority', count: 0 },
+  { emoji: '🚀', label: 'Ship It', count: 0 },
+  { emoji: '💡', label: 'Great Idea', count: 0 },
+  { emoji: '💯', label: '100% Yes', count: 0 },
+  { emoji: '⭐', label: 'Star / Bookmark', count: 0 },
+  { emoji: '❓', label: 'Question', count: 0 },
+  { emoji: '❌', label: 'Disapprove', count: 0 },
+]
 
 export const BOX_SHAPES = [
   'rectangle',
@@ -158,7 +170,20 @@ export const CLOSED_SHAPES = [...BOX_SHAPES, 'circle']
  */
 
 /**
- * @typedef {PenElement | RectangleElement | ShapeElement | CircleElement | LineElement | ArrowElement | TextElement | StickyElement | ImageElement} CanvasElement
+ * @typedef {Object} StampElement
+ * @property {string} id
+ * @property {'stamp'} type
+ * @property {number} x
+ * @property {number} y
+ * @property {number} width
+ * @property {number} height
+ * @property {string} emoji
+ * @property {number} [rotation]
+ * @property {string} [voterName]
+ */
+
+/**
+ * @typedef {PenElement | RectangleElement | ShapeElement | CircleElement | LineElement | ArrowElement | TextElement | StickyElement | ImageElement | StampElement} CanvasElement
  */
 
 /**

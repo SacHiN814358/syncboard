@@ -50,6 +50,7 @@ export default function PropertiesPanel({
   onChangeStickyColor,
   onChangeFontSize,
   onDeleteSelected,
+  onAddVote,
 }) {
   const isSticky = activeTool === 'sticky' || selectedElement?.type === 'sticky'
   const isText = activeTool === 'text' || selectedElement?.type === 'text'
@@ -333,6 +334,39 @@ export default function PropertiesPanel({
             </div>
           </div>
         )}
+
+        {/* FigJam Stamps & Dot Voting Section */}
+        {selectedElement &&
+          (selectedElement.type === 'sticky' ||
+            BOX_SHAPES.includes(selectedElement.type) ||
+            selectedElement.type === 'circle') && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-semibold text-[#868e96] uppercase tracking-wider">
+                  Dot Voting & Stamps
+                </span>
+                <span className="text-[10px] text-[#1971c2] font-semibold">Click to vote</span>
+              </div>
+              <div className="grid grid-cols-5 gap-1 bg-[#f8f9fa] p-1.5 rounded-xl border border-[#e9ecef]">
+                {['👍', '❤️', '🔥', '🚀', '💡', '💯', '⭐', '❓', '❌'].map((emoji) => {
+                  const count = selectedElement.votes?.[emoji] || 0
+                  return (
+                    <button
+                      key={emoji}
+                      onClick={() => onAddVote?.(emoji)}
+                      className={`h-7 rounded-lg text-sm flex items-center justify-center gap-0.5 transition-transform hover:scale-120 cursor-pointer ${
+                        count > 0 ? 'bg-[#e7f5ff] border border-[#74c0fc] font-bold text-xs shadow-2xs' : 'hover:bg-white'
+                      }`}
+                      title={`Vote ${emoji}`}
+                    >
+                      <span>{emoji}</span>
+                      {count > 0 && <span className="text-[10px] text-[#1971c2]">{count}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
         {/* Delete Element Button (when an element is selected) */}
         {selectedElement && (
