@@ -519,23 +519,6 @@ export default function BoardWorkspace({ roomId }) {
     [setRoomAccessMode, broadcastSecurityUpdate, roomPassword]
   )
 
-  // FigJam-style Dot Voting on Selected Element
-  const handleAddVote = useCallback(
-    (emoji) => {
-      if (!selectedElement) return
-      const currentVotes = { ...(selectedElement.votes || {}) }
-      currentVotes[emoji] = (currentVotes[emoji] || 0) + 1
-      const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
-      const updated = currentList.map((el) =>
-        el.id === selectedElement.id ? { ...el, votes: currentVotes } : el
-      )
-      handleElementsChange(updated)
-      setSelectedElement({ ...selectedElement, votes: currentVotes })
-      toast.success(`Voted ${emoji}! 🗳️`, { id: 'vote-toast', duration: 1200 })
-    },
-    [selectedElement, elements, handleElementsChange]
-  )
-
   // Load initial board
   useEffect(() => {
     loadBoard().then((loaded) => {
@@ -603,6 +586,23 @@ export default function BoardWorkspace({ roomId }) {
       broadcastElementsUpdate(deltaElements || newElements, 'upsert')
     },
     [isReadOnly, saveBoard, broadcastElementsUpdate]
+  )
+
+  // FigJam-style Dot Voting on Selected Element
+  const handleAddVote = useCallback(
+    (emoji) => {
+      if (!selectedElement) return
+      const currentVotes = { ...(selectedElement.votes || {}) }
+      currentVotes[emoji] = (currentVotes[emoji] || 0) + 1
+      const currentList = elementsRef.current.length > 0 ? elementsRef.current : elements
+      const updated = currentList.map((el) =>
+        el.id === selectedElement.id ? { ...el, votes: currentVotes } : el
+      )
+      handleElementsChange(updated)
+      setSelectedElement({ ...selectedElement, votes: currentVotes })
+      toast.success(`Voted ${emoji}! 🗳️`, { id: 'vote-toast', duration: 1200 })
+    },
+    [selectedElement, elements, handleElementsChange]
   )
 
   // Undo
